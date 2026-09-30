@@ -68,10 +68,34 @@ export default function App() {
     const matchedNode = nodes.find(node =>
       normalized.includes(node.name.toLowerCase()) || normalized.includes(node.id.toLowerCase())
     );
+    const hospitals = nodes.filter(node => node.sector === 'HEALTHCARE');
+    const hospitalDependencyMap = hospitals.map(hospital => ({
+      hospital,
+      dependencies: edges.filter(edge => edge.target === hospital.id).map(edge => ({
+        node: nodes.find(node => node.id === edge.source),
+        label: edge.label
+      }))
+    }));
+    const matchedHospital = matchedNode?.sector === 'HEALTHCARE' ? matchedNode : undefined;
+    const isPowerIncident = /powercut|power cut|blackout|electricity|power outage|transformer/i.test(input);
+    const isWaterIncident = /water|water outage|water supply/i.test(input);
+    const mappedDependencies = matchedHospital
+      ? hospitalDependencyMap.find(item => item.hospital.id === matchedHospital.id)?.dependencies || []
+      : [];
+    const selectedDependency = isPowerIncident
+      ? mappedDependencies.find(item => /power/i.test(item.label || ''))?.node
+      : isWaterIncident
+        ? mappedDependencies.find(item => /water/i.test(item.label || ''))?.node
+        : undefined;
+    const targetNode = selectedDependency || matchedHospital || (isWaterIncident ? nodes.find(node => node.id === 'WTR_PLANT_A') : nodes.find(node => node.id === 'PWR_SUB_A'));
     const model = 'openrouter/free';
     return {
       model,
       matchedNode,
+      matchedHospital,
+      hospitalDependencyMap,
+      targetNode,
+      incidentType: isPowerIncident ? 'POWER' : isWaterIncident ? 'WATER' : 'FACILITY',
       intent: matchedNode ? 'DEPENDENCY_GRAPH' : 'INFRASTRUCTURE_ANALYSIS'
     };
   };
@@ -368,7 +392,8 @@ export default function App() {
     setIsChatLoading(true);
 
     const plannerDecision = selectPlannerDecision(chatInput);
-    addTrace('PLANNER', 'Rapid Routing', `Selected ${plannerDecision.model} for ${plannerDecision.intent}${plannerDecision.matchedNode ? ` (${plannerDecision.matchedNode.name})` : ''}.`, 'INFO');
+    addTrace('PLANNER', 'Dependency Analysis', `Analysed ${plannerDecision.hospitalDependencyMap.length} healthcare nodes and their incoming dependencies.`, 'INFO');
+    addTrace('PLANNER', 'Rapid Routing', `Selected ${plannerDecision.model} for ${plannerDecision.intent}${plannerDecision.targetNode ? ` → ${plannerDecision.targetNode.name}` : ''}.`, 'INFO');
 
     const callGemma = async () => {
       const systemPrompt = "You are the ResilienceOS AI Assistant and rapid decision planner. Analyze infrastructure reports concisely. If the user mentions a powercut, Substation Alpha, or PWR_SUB_A, identify Substation Alpha (PWR_SUB_A) as failing. If they mention water, Water Treatment Alpha, or WTR_PLANT_A, identify Water Treatment Alpha (WTR_PLANT_A) as failing. If they mention any known hospital or clinic name, identify that exact healthcare node and explain its upstream dependencies and likely cascade impact. Never invent a facility that is not in the supplied infrastructure graph. Confirm that the report is being forwarded to the Cascade Analyst.";
@@ -401,20 +426,14 @@ export default function App() {
       speak(assistantMessage);
 
       // Auto-trigger the Cascade Analyst based on extracted keywords
-      const lowerInput = chatInput.toLowerCase();
-      let injectedNode = plannerDecision.matchedNode?.id || '';
-      if (lowerInput.includes('water')) {
-        injectedNode = 'WTR_PLANT_A';
-      } else if (lowerInput.includes('power') || lowerInput.includes('electricity') || lowerInput.includes('blackout')) {
-        injectedNode = 'PWR_SUB_A';
-      }
+      const injectedNode = plannerDecision.targetNode?.id || '';
 
       if (injectedNode) {
         const selectedNode = nodes.find(node => node.id === injectedNode);
         setIsAnalyzing(true);
         setTimeout(() => {
           setIsAnalyzing(false);
-          addTrace('PLANNER', 'Dependency Graph', `Grounded report to ${selectedNode?.name || injectedNode}; opening dependency cascade.`, 'WARNING');
+          addTrace('PLANNER', 'Dependency Graph', `Grounded ${plannerDecision.incidentType.toLowerCase()} incident to ${selectedNode?.name || injectedNode}${plannerDecision.matchedHospital ? ` for ${plannerDecision.matchedHospital.name}` : ''}; opening dependency cascade.`, 'WARNING');
           handleInjectFailure(injectedNode, `AI Extracted Incident: ${chatInput}`);
           setActiveTab('GRAPH');
         }, 1200); // Compressed 1.2s delay
