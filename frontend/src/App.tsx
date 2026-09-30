@@ -16,46 +16,6 @@ import type {
   AgentTraceEntry, SimulationEvent, MonteCarloRun
 } from './types';
 import { BackendGraphEngine } from './BackendGraphEngine';
-import { MapController } from './MapController';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-
-const createNodeIcon = (node: InfraNode) => {
-  const isFailed = node.health === "FAILED";
-  let pinHtml = '';
-  
-  if (node.sector === 'healthcare') {
-    pinHtml = `
-      <div class="hospital-shield" style="background: linear-gradient(135deg, #ef4444, #991b1b); box-shadow: 0 0 15px #ef444480, inset 0 2px 5px rgba(255,255,255,0.4); width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; position: relative;">
-          <span style="font-size: 20px;">${node.icon}</span>
-          <div style="position: absolute; inset: -6px; border: 2px solid #ef4444; border-radius: 16px; animation: radarPulse 2s linear infinite; opacity: 0.5; pointer-events: none;"></div>
-          <text style="position: absolute; bottom: -20px; white-space: nowrap; font-size: 10px; font-weight: bold; color: var(--text-h); text-shadow: 0px 0px 4px #000;">${node.name}</text>
-      </div>
-    `;
-  } else {
-    pinHtml = `
-      <div style="
-          position: relative;
-          width: 30px;
-          height: 30px;
-          background-color: ${node.sector === 'power' ? '#f59e0b' : node.sector === 'water' ? '#3b82f6' : '#8b5cf6'};
-          border-radius: 50% 50% 50% 0;
-          transform: rotate(-45deg);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          box-shadow: 0 4px 8px rgba(0,0,0,0.4);
-          border: 2px solid white;
-      ">
-          <span style="transform: rotate(45deg); font-size: 14px; margin-left: 2px; margin-bottom: 2px;">${node.icon}</span>
-          ${isFailed ? `<div style="position:absolute; inset:-4px; border-radius:50%; border: 2px solid #ef4444; animation: pulseRing 1.5s infinite; transform: rotate(45deg);"></div>` : ''}
-          <text style="transform: rotate(45deg); position: absolute; bottom: -30px; left: -15px; white-space: nowrap; font-size: 10px; font-weight: bold; color: var(--text-h); text-shadow: 0px 0px 4px #000;">${node.name}</text>
-      </div>
-    `;
-  }
-
-  return L.divIcon({ html: pinHtml, className: '', iconSize: [40, 40], iconAnchor: [20, 40] });
-};
 
 import { runPredictionBatch } from './services/predictionApi';
 import RunwayAnalystProcess from './components/RunwayAnalystProcess';
@@ -69,8 +29,6 @@ const IconAlert = () => <span style={{ color: 'var(--neon-red)' }}>⚠</span>;
 const IconInfo = () => <span style={{ color: 'var(--neon-cyan)' }}>ℹ</span>;
 
 export default function App() {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapControllerRef = useRef<MapController | null>(null);
   // --- State ---
   const [nodes, setNodes] = useState<InfraNode[]>(initialNodes);
   const [edges, setEdges] = useState<InfraEdge[]>(initialEdges);
@@ -87,35 +45,11 @@ export default function App() {
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictionTime, setPredictionTime] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'GRAPH' | 'PLANS' | 'ENGINE' | 'CHAT'>('GRAPH');
-
-  useEffect(() => {
-    if (mapRef.current) {
-      if (!mapControllerRef.current) {
-        const cityData = {
-          center: [9.9252, 78.1198],
-          zoom: 13,
-          nodes: nodes,
-          edges: edges
-        };
-        const engineStub = {
-          getNode: (id: string) => nodes.find(n => n.id === id),
-          getAllNodes: () => nodes
-        };
-        mapControllerRef.current = new MapController(mapRef.current, cityData, engineStub);
-        mapControllerRef.current.init();
-      } else {
-        mapControllerRef.current.cityData.nodes = nodes;
-        mapControllerRef.current.cityData.edges = edges;
-        mapControllerRef.current.showCascade = cascadeResult ? true : false;
-        mapControllerRef.current.refreshMarkers();
-        if (activeTab === 'GRAPH') {
-          mapControllerRef.current.map.invalidateSize();
-        }
-      }
-    }
-  }, [nodes, edges, activeTab, cascadeResult]);
-
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'GRAPH' | 'PLANS' | 'RUNWAY' | 'REFLECTOR' | 'MAP' | 'ENGINE' | 'CHAT'>('GRAPH');
+  const [autoExecute, setAutoExecute] = useState(false);
+  const [pendingConfirmations, setPendingConfirmations] = useState<{nodeId: string, actionDesc: string}[]>([]);
+  const [rootFailureNodeId, setRootFailureNodeId] = useState<string | null>(null);
+  const [isGisModalOpen, setIsGisModalOpen] = useState(false);
   // --- Chat State ---
   const [chatMessages, setChatMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([
     { role: 'assistant', content: 'Hello! I am your AI Resilience Assistant powered by Ollama. How can I help you analyze the infrastructure today?' }
@@ -419,13 +353,6 @@ export default function App() {
       setIsChatLoading(false);
     }
   };
-  const renderMap = (isActive: boolean) => (
-    <div className="graph-container" style={{ display: isActive ? 'flex' : 'none', position: 'relative', overflow: 'hidden', borderRadius: '16px', height: '100%', flexGrow: 1, minHeight: '600px', flexDirection: 'column' }}>
-      <div ref={mapRef} id="resilience-map" style={{ width: '100%', flexGrow: 1, background: '#0f172a' }}></div>
-    </div>
-  );
-
-
   // --- Execute Plan ---
   const handleExecutePlan = async (plan: RecoveryPlan) => {
     addTrace('PLANNER', 'Execution', `Executing Recovery Plan: ${plan.name}...`, 'INFO');
@@ -510,8 +437,11 @@ export default function App() {
         
         <div className="nav-tabs">
           <button className={`nav-tab ${activeTab === 'DASHBOARD' ? 'active' : ''}`} onClick={() => setActiveTab('DASHBOARD')}>Dashboard</button>
-          <button className={`nav-tab ${activeTab === 'GRAPH' ? 'active' : ''}`} onClick={() => setActiveTab('GRAPH')}>Leaflet Map</button>
+          <button className={`nav-tab ${activeTab === 'GRAPH' ? 'active' : ''}`} onClick={() => setActiveTab('GRAPH')}>Dependency Graph</button>
+          <button className={`nav-tab ${activeTab === 'MAP' ? 'active' : ''}`} onClick={() => setActiveTab('MAP')}>City Map</button>
           <button className={`nav-tab ${activeTab === 'PLANS' ? 'active' : ''}`} onClick={() => setActiveTab('PLANS')}>Recovery Plans</button>
+          <button className={`nav-tab ${activeTab === 'RUNWAY' ? 'active' : ''}`} onClick={() => setActiveTab('RUNWAY')}>Runway Analyst</button>
+          <button className={`nav-tab ${activeTab === 'REFLECTOR' ? 'active' : ''}`} onClick={() => setActiveTab('REFLECTOR')}>Reflector Agent</button>
           <button className={`nav-tab ${activeTab === 'ENGINE' ? 'active' : ''}`} onClick={() => setActiveTab('ENGINE')}>GraphEngine</button>
           <button className={`nav-tab ${isChatFloating ? 'active' : ''}`} onClick={() => setIsChatFloating(!isChatFloating)}>AI Assistant</button>
         </div>
@@ -740,7 +670,44 @@ export default function App() {
           </div>
         )}
 
-        {renderMap(activeTab === 'GRAPH')}
+        {activeTab === 'GRAPH' && (
+          <div className="graph-container">
+            <svg className="graph-svg" viewBox="0 0 800 600">
+              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                <path d="M 40 0 L 0 0 0 40" fill="none" className="grid-pattern" />
+              </pattern>
+              <rect width="100%" height="100%" fill="url(#grid)" />
+              
+              {/* Edges */}
+              {edges.map(edge => {
+                const source = nodes.find(n => n.id === edge.source);
+                const target = nodes.find(n => n.id === edge.target);
+                if (!source || !target) return null;
+                const isCascade = cascadeResult?.propagationPath.some(p => p.from === source.id && p.to === target.id);
+                return (
+                  <g key={edge.id}>
+                    <line 
+                      x1={source.location.x} y1={source.location.y}
+                      x2={target.location.x} y2={target.location.y}
+                      className={`graph-edge ${isCascade ? 'cascade-active' : ''}`}
+                    />
+                    <text x={(source.location.x + target.location.x)/2} y={(source.location.y + target.location.y)/2 - 5} className="graph-edge-label">{edge.label}</text>
+                  </g>
+                );
+              })}
+
+              {/* Nodes */}
+              {nodes.map(node => (
+                <g key={node.id} className="graph-node" transform={`translate(${node.location.x}, ${node.location.y})`}>
+                  {node.health === 'FAILED' && <circle r="40" className="cascade-ripple" />}
+                  <circle r="30" className={`node-ring ${node.health}`} />
+                  <text className="node-emoji">{node.icon}</text>
+                  <text y="45" className="node-label">{node.name}</text>
+                </g>
+              ))}
+            </svg>
+          </div>
+        )}
 
         {isChatFloating && (
           <div className="chat-floating-window glass-card" style={{ 
