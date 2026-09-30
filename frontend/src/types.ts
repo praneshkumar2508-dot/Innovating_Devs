@@ -12,7 +12,7 @@ export interface InfraNode {
   id: string;
   name: string;
   sector: Sector;
-  location: { x: number; y: number };
+  location: { x: number; y: number; lat?: number; lng?: number };
   health: HealthStatus;
   capacity: number;
   currentLoad: number;

@@ -7,25 +7,24 @@ def seeded_random(seed: int):
     random.seed(seed)
     return random.random
 
-def simulate_cascade(kwargs: Dict[str, Any]) -> Dict[str, Any]:
-    nodes = kwargs.get("nodes", [])
-    edges = kwargs.get("edges", [])
-    failed_node_ids = kwargs.get("failedNodeIds", [])
-    seed = kwargs.get("seed", 42)
+def simulate_cascade(nodes=None, edges=None, failedNodeIds=None, seed=42, **kwargs: Any) -> Dict[str, Any]:
+    if nodes is None: nodes = []
+    if edges is None: edges = []
+    if failedNodeIds is None: failedNodeIds = []
 
     rng = seeded_random(seed)
     node_map = {n["id"]: dict(n) for n in nodes}
-    failed = set(failed_node_ids)
+    failed = set(failedNodeIds)
     propagation_path = []
     step = 0
 
     # Mark initial failures
-    for fid in failed_node_ids:
+    for fid in failedNodeIds:
         if fid in node_map:
             node_map[fid]["health"] = "FAILED"
             node_map[fid]["currentLoad"] = 0
 
-    frontier = list(failed_node_ids)
+    frontier = list(failedNodeIds)
     while frontier:
         next_frontier = []
         step += 1
@@ -105,9 +104,9 @@ def score_plan(nodes: List[Dict], edges: List[Dict], actions: List[Dict]) -> Dic
         "waterProtected": repairs_water,
     }
 
-def generate_plans(kwargs: Dict[str, Any]) -> Dict[str, Any]:
-    nodes = kwargs.get("nodes", [])
-    edges = kwargs.get("edges", [])
+def generate_plans(nodes=None, edges=None, **kwargs: Any) -> Dict[str, Any]:
+    if nodes is None: nodes = []
+    if edges is None: edges = []
     
     failed_nodes = [n for n in nodes if n.get("health") in ("FAILED", "AT_RISK")]
     if not failed_nodes:
@@ -181,9 +180,8 @@ def generate_plans(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     ]
     return {"plans": plans}
 
-def run_monte_carlo(kwargs: Dict[str, Any]) -> Dict[str, Any]:
-    plans = kwargs.get("plans", [])
-    runs = kwargs.get("runs", 100)
+def run_monte_carlo(plans=None, runs=100, **kwargs: Any) -> Dict[str, Any]:
+    if plans is None: plans = []
     results = []
 
     for plan in plans:

@@ -15,6 +15,46 @@ import type {
   AgentTraceEntry, SimulationEvent, MonteCarloRun
 } from './types';
 import { BackendGraphEngine } from './BackendGraphEngine';
+import { MapController } from './MapController';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+const createNodeIcon = (node: InfraNode) => {
+  const isFailed = node.health === "FAILED";
+  let pinHtml = '';
+  
+  if (node.sector === 'healthcare') {
+    pinHtml = `
+      <div class="hospital-shield" style="background: linear-gradient(135deg, #ef4444, #991b1b); box-shadow: 0 0 15px #ef444480, inset 0 2px 5px rgba(255,255,255,0.4); width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; position: relative;">
+          <span style="font-size: 20px;">${node.icon}</span>
+          <div style="position: absolute; inset: -6px; border: 2px solid #ef4444; border-radius: 16px; animation: radarPulse 2s linear infinite; opacity: 0.5; pointer-events: none;"></div>
+          <text style="position: absolute; bottom: -20px; white-space: nowrap; font-size: 10px; font-weight: bold; color: var(--text-h); text-shadow: 0px 0px 4px #000;">${node.name}</text>
+      </div>
+    `;
+  } else {
+    pinHtml = `
+      <div style="
+          position: relative;
+          width: 30px;
+          height: 30px;
+          background-color: ${node.sector === 'power' ? '#f59e0b' : node.sector === 'water' ? '#3b82f6' : '#8b5cf6'};
+          border-radius: 50% 50% 50% 0;
+          transform: rotate(-45deg);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+          border: 2px solid white;
+      ">
+          <span style="transform: rotate(45deg); font-size: 14px; margin-left: 2px; margin-bottom: 2px;">${node.icon}</span>
+          ${isFailed ? `<div style="position:absolute; inset:-4px; border-radius:50%; border: 2px solid #ef4444; animation: pulseRing 1.5s infinite; transform: rotate(45deg);"></div>` : ''}
+          <text style="transform: rotate(45deg); position: absolute; bottom: -30px; left: -15px; white-space: nowrap; font-size: 10px; font-weight: bold; color: var(--text-h); text-shadow: 0px 0px 4px #000;">${node.name}</text>
+      </div>
+    `;
+  }
+
+  return L.divIcon({ html: pinHtml, className: '', iconSize: [40, 40], iconAnchor: [20, 40] });
+};
 
 // Icons for the UI
 const IconCheck = () => <span style={{ color: 'var(--neon-green)' }}>✓</span>;
@@ -22,6 +62,8 @@ const IconAlert = () => <span style={{ color: 'var(--neon-red)' }}>⚠</span>;
 const IconInfo = () => <span style={{ color: 'var(--neon-cyan)' }}>ℹ</span>;
 
 export default function App() {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapControllerRef = useRef<MapController | null>(null);
   // --- State ---
   const [nodes, setNodes] = useState<InfraNode[]>(initialNodes);
   const [edges, setEdges] = useState<InfraEdge[]>(initialEdges);
@@ -35,7 +77,74 @@ export default function App() {
   const [events, setEvents] = useState<SimulationEvent[]>([]);
   const [mcResults, setMcResults] = useState<MonteCarloRun[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'GRAPH' | 'PLANS' | 'ENGINE'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'GRAPH' | 'PLANS' | 'ENGINE' | 'CHAT'>('GRAPH');
+
+  useEffect(() => {
+    if (mapRef.current) {
+      if (!mapControllerRef.current) {
+        const cityData = {
+          center: [9.9252, 78.1198],
+          zoom: 13,
+          nodes: nodes,
+          edges: edges
+        };
+        const engineStub = {
+          getNode: (id: string) => nodes.find(n => n.id === id),
+          getAllNodes: () => nodes
+        };
+        mapControllerRef.current = new MapController(mapRef.current, cityData, engineStub);
+        mapControllerRef.current.init();
+      } else {
+        mapControllerRef.current.cityData.nodes = nodes;
+        mapControllerRef.current.cityData.edges = edges;
+        mapControllerRef.current.showCascade = cascadeResult ? true : false;
+        mapControllerRef.current.refreshMarkers();
+        if (activeTab === 'GRAPH') {
+          mapControllerRef.current.map.invalidateSize();
+        }
+      }
+    }
+  }, [nodes, edges, activeTab, cascadeResult]);
+
+  // --- Chat State ---
+  const [chatMessages, setChatMessages] = useState<{role: 'user' | 'assistant', content: string}[]>([
+    { role: 'assistant', content: 'Hello! I am your AI Resilience Assistant powered by Ollama. How can I help you analyze the infrastructure today?' }
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isChatFloating, setIsChatFloating] = useState(false);
+
+  // --- Voice Helpers ---
+  const speak = (text: string) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  const handleVoiceInput = () => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert('Voice recognition is not supported in this browser.');
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setChatInput(transcript);
+    };
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
+    
+    recognition.start();
+  };
 
   // --- Helpers ---
   const addTrace = (agent: AgentTraceEntry['agent'], action: string, detail: string, severity: AgentTraceEntry['severity'] = 'INFO') => {
@@ -166,9 +275,129 @@ export default function App() {
       ));
     }
   };
+  const handleChatSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    
+    const userMsg = { role: 'user' as const, content: chatInput };
+    setChatMessages(prev => [...prev, userMsg]);
+    setChatInput('');
+    setIsChatLoading(true);
+
+    const callOllama = async (modelName: string) => {
+      const systemPrompt = "You are the ResilienceOS AI Assistant. Analyze infrastructure reports. If the user mentions a 'powercut', state that Substation Alpha (PWR_SUB_A) is failing. If they mention 'water', state that Water Treatment Alpha (WTR_PLANT_A) is failing. Briefly explain the impact and confirm you are forwarding the report to the Cascade Analyst.";
+      
+      const response = await fetch('http://localhost:11434/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [{ role: 'system', content: systemPrompt }, ...chatMessages, userMsg].map(m => ({ role: m.role, content: m.content })),
+          stream: false
+        })
+      });
+      if (!response.ok) throw new Error(`Model ${modelName} failed`);
+      return response.json();
+    };
+
+    try {
+      // Attempt primary model
+      let data;
+      try {
+        data = await callOllama('gemma3:1b');
+      } catch (e) {
+        // Fallback to qwen
+        setChatMessages(prev => [...prev, { role: 'assistant', content: 'Fallback: gemma3:1b not found, trying qwen...' }]);
+        data = await callOllama('qwen');
+      }
+      
+      setChatMessages(prev => {
+        // Remove the temporary fallback message if it exists
+        const cleaned = prev.filter(m => !m.content.startsWith('Fallback:'));
+        return [...cleaned, { role: 'assistant', content: data.message.content }];
+      });
+      speak(data.message.content);
+
+      // Auto-trigger the Cascade Analyst based on extracted keywords
+      const lowerInput = chatInput.toLowerCase();
+      let injectedNode = '';
+      if (lowerInput.includes('water')) {
+        injectedNode = 'WTR_PLANT_A';
+      } else if (lowerInput.includes('power') || lowerInput.includes('electricity') || lowerInput.includes('blackout')) {
+        injectedNode = 'PWR_SUB_A';
+      }
+
+      if (injectedNode) {
+        setIsAnalyzing(true);
+        setTimeout(() => {
+          setIsAnalyzing(false);
+          handleInjectFailure(injectedNode, `AI Extracted Incident: ${chatInput}`);
+          setActiveTab('GRAPH'); 
+        }, 1200); // Compressed 1.2s delay
+      }
+
+    } catch (err) {
+      setChatMessages(prev => {
+        const cleaned = prev.filter(m => !m.content.startsWith('Fallback:'));
+        
+        // --- Simulated AI Engine Fallback ---
+        // If Ollama is not installed, we provide a dynamic simulated response so the app remains perfectly functional
+        const inputLower = chatInput.toLowerCase();
+        let simResponse = "I'm currently running in Simulated Mode because the local Ollama engine isn't installed. ";
+        
+        if (inputLower.includes('flood') || inputLower.includes('water')) {
+          simResponse += "However, based on the network graph, flooding at Substation Alpha severely impacts downstream residential zones. I recommend routing backup power from the East Grid.";
+        } else if (inputLower.includes('status') || inputLower.includes('health')) {
+          simResponse += "The current infrastructure is operating nominally, but we have 2 critical nodes that lack sufficient runway buffers. Please check the 'Recovery Plans' tab.";
+        } else if (inputLower.includes('plan') || inputLower.includes('recover')) {
+          simResponse += "Our Monte Carlo simulations indicate Plan B yields the highest recovery probability (85%) with the lowest risk of cascading blackouts.";
+        } else {
+          simResponse += "I've analyzed the infrastructure graph. To perform a deep neural-net analysis on that specific scenario, please install Ollama. In the meantime, I can answer basic status queries!";
+        }
+
+        return [...cleaned, { role: 'assistant', content: simResponse }];
+      });
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+  const renderMap = (isActive: boolean) => (
+    <div className="graph-container" style={{ display: isActive ? 'flex' : 'none', position: 'relative', overflow: 'hidden', borderRadius: '16px', height: '100%', flexGrow: 1, minHeight: '600px', flexDirection: 'column' }}>
+      <div ref={mapRef} id="resilience-map" style={{ width: '100%', flexGrow: 1, background: '#0f172a' }}></div>
+    </div>
+  );
+
 
   return (
     <div className="app-container">
+      {/* NEW DIGITAL SYNC OVERLAY */}
+      {isAnalyzing && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'radial-gradient(circle at center, rgba(15,23,42,0.85) 0%, rgba(0,0,0,0.98) 100%)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <div className="cyber-glitch-box">
+             <div className="cyber-ring ring-1"></div>
+             <div className="cyber-ring ring-2"></div>
+             <div className="cyber-ring ring-3"></div>
+             <div className="cyber-core"></div>
+          </div>
+          <h2 className="glitch-text" data-text="CALCULATING VECTORS">
+            CALCULATING VECTORS
+          </h2>
+          <div style={{ marginTop: '20px', color: '#00f3ff', fontSize: '14px', fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '4px' }}>
+            [ Engaging Neural Sub-Routines ]
+          </div>
+        </div>
+      )}
+
       {/* HEADER */}
       <header className="header">
         <div className="header-brand">
@@ -178,9 +407,10 @@ export default function App() {
         
         <div className="nav-tabs">
           <button className={`nav-tab ${activeTab === 'DASHBOARD' ? 'active' : ''}`} onClick={() => setActiveTab('DASHBOARD')}>Dashboard</button>
-          <button className={`nav-tab ${activeTab === 'GRAPH' ? 'active' : ''}`} onClick={() => setActiveTab('GRAPH')}>Dependency Graph</button>
+          <button className={`nav-tab ${activeTab === 'GRAPH' ? 'active' : ''}`} onClick={() => setActiveTab('GRAPH')}>Leaflet Map</button>
           <button className={`nav-tab ${activeTab === 'PLANS' ? 'active' : ''}`} onClick={() => setActiveTab('PLANS')}>Recovery Plans</button>
           <button className={`nav-tab ${activeTab === 'ENGINE' ? 'active' : ''}`} onClick={() => setActiveTab('ENGINE')}>GraphEngine</button>
+          <button className={`nav-tab ${isChatFloating ? 'active' : ''}`} onClick={() => setIsChatFloating(!isChatFloating)}>AI Assistant</button>
         </div>
 
         <div className="header-status">
@@ -197,13 +427,22 @@ export default function App() {
         <div className="sidebar-section">
           <div className="sidebar-section-header">Incident Injection</div>
           <div className="event-injector">
-            <button className="inject-btn" onClick={() => handleInjectFailure('PWR_SUB_A', 'Flood at Substation Alpha')}>
+            <button className="inject-btn" onClick={() => {
+              setIsAnalyzing(true);
+              setTimeout(() => { setIsAnalyzing(false); setActiveTab('GRAPH'); handleInjectFailure('PWR_SUB_A', 'Flood at Substation Alpha'); }, 1200);
+            }}>
               <span className="inject-icon">🌊</span> Flood: Substation Alpha
             </button>
-            <button className="inject-btn" onClick={() => handleInjectFailure('TRN_ROAD_R1', 'Road R1 Blocked by Debris')}>
+            <button className="inject-btn" onClick={() => {
+              setIsAnalyzing(true);
+              setTimeout(() => { setIsAnalyzing(false); setActiveTab('GRAPH'); handleInjectFailure('TRN_ROAD_R1', 'Road R1 Blocked by Debris'); }, 1200);
+            }}>
               <span className="inject-icon">🚧</span> Block: Road R1
             </button>
-            <button className="inject-btn" onClick={() => handleInjectFailure('WTR_PLANT_A', 'Water Plant Pump Failure')}>
+            <button className="inject-btn" onClick={() => {
+              setIsAnalyzing(true);
+              setTimeout(() => { setIsAnalyzing(false); setActiveTab('GRAPH'); handleInjectFailure('WTR_PLANT_A', 'Water Plant Pump Failure'); }, 1200);
+            }}>
               <span className="inject-icon">💧</span> Fail: Water Plant A
             </button>
           </div>
@@ -325,42 +564,57 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'GRAPH' && (
-          <div className="graph-container">
-            <svg className="graph-svg" viewBox="0 0 800 600">
-              <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                <path d="M 40 0 L 0 0 0 40" fill="none" className="grid-pattern" />
-              </pattern>
-              <rect width="100%" height="100%" fill="url(#grid)" />
-              
-              {/* Edges */}
-              {edges.map(edge => {
-                const source = nodes.find(n => n.id === edge.source);
-                const target = nodes.find(n => n.id === edge.target);
-                if (!source || !target) return null;
-                const isCascade = cascadeResult?.propagationPath.some(p => p.from === source.id && p.to === target.id);
-                return (
-                  <g key={edge.id}>
-                    <line 
-                      x1={source.location.x} y1={source.location.y}
-                      x2={target.location.x} y2={target.location.y}
-                      className={`graph-edge ${isCascade ? 'cascade-active' : ''}`}
-                    />
-                    <text x={(source.location.x + target.location.x)/2} y={(source.location.y + target.location.y)/2 - 5} className="graph-edge-label">{edge.label}</text>
-                  </g>
-                );
-              })}
+        {renderMap(activeTab === 'GRAPH')}
 
-              {/* Nodes */}
-              {nodes.map(node => (
-                <g key={node.id} className="graph-node" transform={`translate(${node.location.x}, ${node.location.y})`}>
-                  {node.health === 'FAILED' && <circle r="40" className="cascade-ripple" />}
-                  <circle r="30" className={`node-ring ${node.health}`} />
-                  <text className="node-emoji">{node.icon}</text>
-                  <text y="45" className="node-label">{node.name}</text>
-                </g>
+        {isChatFloating && (
+          <div className="chat-floating-window glass-card" style={{ 
+            position: 'fixed', 
+            bottom: '20px', 
+            right: '320px', 
+            width: '400px', 
+            height: '600px', 
+            zIndex: 9000, 
+            display: 'flex', 
+            flexDirection: 'column', 
+            padding: 0,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.8)',
+            border: '1px solid rgba(0,243,255,0.3)',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            background: 'var(--bg-card)'
+          }}>
+            <div className="dashboard-card-header" style={{ padding: 'var(--space-md)', background: 'rgba(0, 243, 255, 0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(0,243,255,0.3)' }}>
+              <span>AI Resilience Assistant</span>
+              <button onClick={() => setIsChatFloating(false)} style={{ background: 'transparent', border: 'none', color: '#00f3ff', cursor: 'pointer', fontSize: '18px', padding: '0 8px' }}>✕</button>
+            </div>
+            <div className="chat-messages" style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
+              {chatMessages.map((m, i) => (
+                <div key={i} className={`chat-bubble ${m.role}`} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? 'rgba(0, 243, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)', border: `1px solid ${m.role === 'user' ? 'rgba(0, 243, 255, 0.3)' : 'var(--border)'}`, padding: 'var(--space-sm) var(--space-md)', borderRadius: '12px', maxWidth: '80%', color: 'var(--text-h)' }}>
+                  <div style={{ fontSize: '10px', opacity: 0.6, marginBottom: '4px', textTransform: 'uppercase' }}>{m.role === 'user' ? 'You' : 'Ollama Engine'}</div>
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{m.content}</div>
+                </div>
               ))}
-            </svg>
+              {isChatLoading && (
+                <div className="chat-bubble assistant" style={{ alignSelf: 'flex-start', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)', padding: 'var(--space-sm) var(--space-md)', borderRadius: '12px', color: 'var(--text-h)' }}>
+                  <div style={{ fontSize: '10px', opacity: 0.6, marginBottom: '4px', textTransform: 'uppercase' }}>Ollama Engine</div>
+                  <div>Analyzing...</div>
+                </div>
+              )}
+            </div>
+            <form onSubmit={handleChatSubmit} style={{ display: 'flex', borderTop: '1px solid var(--border)', padding: 'var(--space-md)', background: 'rgba(0,0,0,0.2)' }}>
+              <input 
+                type="text" 
+                value={chatInput} 
+                onChange={e => setChatInput(e.target.value)} 
+                placeholder="Ask about infrastructure resilience..." 
+                style={{ flex: 1, background: 'var(--bg-void)', border: '1px solid var(--border)', color: 'var(--text-h)', padding: 'var(--space-sm) var(--space-md)', borderRadius: '8px', marginRight: 'var(--space-sm)', outline: 'none' }}
+                disabled={isChatLoading}
+              />
+              <button type="button" onClick={handleVoiceInput} className="inject-btn" style={{ margin: '0 var(--space-sm) 0 0', padding: 'var(--space-sm)', background: isListening ? '#ff006e' : 'var(--bg-card)' }} disabled={isChatLoading || isListening}>
+                {isListening ? '🎙️...' : '🎤'}
+              </button>
+              <button type="submit" className="inject-btn" style={{ margin: 0, padding: 'var(--space-sm) var(--space-md)' }} disabled={isChatLoading}>Send</button>
+            </form>
           </div>
         )}
 
