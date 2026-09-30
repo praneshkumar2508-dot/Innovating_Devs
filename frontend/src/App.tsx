@@ -285,10 +285,14 @@ export default function App() {
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
+          max_tokens: 1000,
           messages: [{ role: 'system', content: systemPrompt }, ...chatMessages, userMsg].map(m => ({ role: m.role, content: m.content }))
         })
       });
-      if (!response.ok) throw new Error(`OpenRouter API failed`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`OpenRouter Error ${response.status}: ${errorText}`);
+      }
       return response.json();
     };
 
