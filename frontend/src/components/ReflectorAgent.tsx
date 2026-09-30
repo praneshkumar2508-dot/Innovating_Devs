@@ -148,46 +148,46 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
       {status === 'SUCCESS' && (
         <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: '1fr 1fr' }}>
           
-          <div className="dashboard-card" style={{ gridColumn: '1 / -1' }}>
-            <div className="dashboard-card-header">Incident Summary</div>
+          <div className="dashboard-card" style={{ gridColumn: '1 / -1', border: '1px solid var(--neon-cyan)', boxShadow: '0 0 10px rgba(0, 255, 255, 0.2)' }}>
+            <div className="dashboard-card-header" style={{ color: 'var(--neon-cyan)', borderBottom: '1px solid var(--neon-cyan)' }}>Incident Summary</div>
             <div className="dashboard-card-body" style={{ display: 'flex', gap: '30px', fontFamily: 'var(--font-mono)', flexWrap: 'wrap' }}>
-              <div><span style={{ color: 'var(--text-secondary)' }}>Incident:</span> {incidentType}</div>
-              <div><span style={{ color: 'var(--text-secondary)' }}>Sector:</span> {incidentSector}</div>
-              <div><span style={{ color: 'var(--text-secondary)' }}>Failed:</span> <span style={{ color: 'var(--neon-red)' }}>{failedNodes.length} nodes</span></div>
-              <div><span style={{ color: 'var(--text-secondary)' }}>Stressed:</span> <span style={{ color: 'var(--neon-orange)' }}>{stressedNodes.length} nodes</span></div>
-              {cascadeResult && <div><span style={{ color: 'var(--text-secondary)' }}>Pop. Affected:</span> <span style={{ color: 'var(--neon-red)' }}>{(cascadeResult.populationAffected / 1000).toFixed(0)}K</span></div>}
+              <div><span style={{ color: 'var(--text-secondary)' }}>Incident:</span> <span style={{ color: 'var(--neon-pink)' }}>{incidentType}</span></div>
+              <div><span style={{ color: 'var(--text-secondary)' }}>Sector:</span> <span style={{ color: 'var(--neon-purple)' }}>{incidentSector}</span></div>
+              <div><span style={{ color: 'var(--text-secondary)' }}>Failed:</span> <span style={{ color: 'var(--neon-red)', fontWeight: 'bold' }}>{failedNodes.length} nodes</span></div>
+              <div><span style={{ color: 'var(--text-secondary)' }}>Stressed:</span> <span style={{ color: 'var(--neon-orange)', fontWeight: 'bold' }}>{stressedNodes.length} nodes</span></div>
+              {cascadeResult && <div><span style={{ color: 'var(--text-secondary)' }}>Pop. Affected:</span> <span style={{ color: 'var(--neon-red)', fontWeight: 'bold' }}>{(cascadeResult.populationAffected / 1000).toFixed(0)}K</span></div>}
             </div>
           </div>
 
-          <div className="dashboard-card">
-            <div className="dashboard-card-header">What Happened? (Timeline)</div>
+          <div className="dashboard-card" style={{ border: '1px solid var(--neon-purple)', boxShadow: '0 0 10px rgba(188, 19, 254, 0.2)' }}>
+            <div className="dashboard-card-header" style={{ color: 'var(--neon-purple)', borderBottom: '1px solid var(--neon-purple)' }}>What Happened? (Timeline)</div>
             <div className="dashboard-card-body" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}>
               {timeline.length > 0 ? timeline.map((t, i) => (
                 <div key={i} style={{ marginBottom: '8px' }}>
-                  <strong>{t.time}:</strong> {t.description}
+                  <strong style={{ color: 'var(--neon-cyan)' }}>{t.time}:</strong> <span style={{ color: 'var(--text-h)' }}>{t.description}</span>
                 </div>
               )) : (
                 <div style={{ color: 'var(--text-secondary)' }}>No timeline events recorded.</div>
               )}
               {failedNodes.map(n => (
-                <div key={n.id} style={{ marginBottom: '4px', color: 'var(--neon-orange)' }}>
-                  ↳ {n.name}: {n.health} (Runway: {n.runwayHours}h)
+                <div key={n.id} style={{ marginBottom: '4px', color: 'var(--neon-red)' }}>
+                  ↳ {n.name}: {n.health} (Runway: <span style={{ color: 'var(--neon-orange)' }}>{n.runwayHours}h</span>)
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="dashboard-card">
-            <div className="dashboard-card-header">Prediction Review</div>
+          <div className="dashboard-card" style={{ border: '1px solid var(--neon-pink)', boxShadow: '0 0 10px rgba(255, 0, 255, 0.2)' }}>
+            <div className="dashboard-card-header" style={{ color: 'var(--neon-pink)', borderBottom: '1px solid var(--neon-pink)' }}>Prediction Review</div>
             <div className="dashboard-card-body" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Predicted:</span> {prediction.predicted}
+                <span style={{ color: 'var(--text-secondary)' }}>Predicted:</span> <span style={{ color: 'var(--neon-cyan)' }}>{prediction.predicted}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Actual:</span> {prediction.actual}
+                <span style={{ color: 'var(--text-secondary)' }}>Actual:</span> <span style={{ color: 'var(--neon-orange)' }}>{prediction.actual}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-                <span style={{ color: 'var(--text-secondary)' }}>Result:</span> <strong style={{ color: prediction.resultColor }}>{prediction.result}</strong>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', borderTop: '1px dashed var(--neon-pink)', paddingTop: '16px' }}>
+                <span style={{ color: 'var(--text-secondary)' }}>Result:</span> <strong style={{ color: prediction.resultColor, textShadow: `0 0 5px ${prediction.resultColor}` }}>{prediction.result}</strong>
               </div>
             </div>
           </div>
@@ -250,8 +250,8 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
             </div>
           </div>
 
-          <div className="dashboard-card">
-            <div className="dashboard-card-header">Regression Tests Generated</div>
+          <div className="dashboard-card" style={{ gridColumn: '1 / -1', border: '1px solid var(--neon-green)', boxShadow: '0 0 10px rgba(57, 255, 20, 0.2)' }}>
+            <div className="dashboard-card-header" style={{ color: 'var(--neon-green)', borderBottom: '1px solid var(--neon-green)' }}>Regression Tests Generated</div>
             <div className="dashboard-card-body">
               {dynamicTests.length > 0 ? (
                 <ul style={{ paddingLeft: '20px', margin: 0, color: 'var(--text-secondary)' }}>

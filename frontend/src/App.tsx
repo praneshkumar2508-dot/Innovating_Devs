@@ -15,10 +15,8 @@ import type {
   RecoveryPlan, ChallengerAttack, ReflectorLesson,
   AgentTraceEntry, SimulationEvent, MonteCarloRun
 } from './types';
-import { BackendGraphEngine } from './BackendGraphEngine';
 
 import { runPredictionBatch } from './services/predictionApi';
-import RunwayAnalystProcess from './components/RunwayAnalystProcess';
 import { ReflectorAgent } from './components/ReflectorAgent';
 import { GisReportModal } from './components/GisReportModal';
 import { CityMap } from './components/CityMap';
@@ -45,7 +43,7 @@ export default function App() {
   const [isPredicting, setIsPredicting] = useState(false);
   const [predictionTime, setPredictionTime] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'GRAPH' | 'PLANS' | 'RUNWAY' | 'REFLECTOR' | 'MAP' | 'ENGINE' | 'CHAT'>('GRAPH');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'GRAPH' | 'PLANS' | 'REFLECTOR' | 'MAP' | 'CHAT'>('GRAPH');
   const [autoExecute, setAutoExecute] = useState(false);
   const [pendingConfirmations, setPendingConfirmations] = useState<{nodeId: string, actionDesc: string}[]>([]);
   const [rootFailureNodeId, setRootFailureNodeId] = useState<string | null>(null);
@@ -191,7 +189,7 @@ export default function App() {
     }
 
     try {
-      const newPlans = await generatePlansBackend(nodes, edges, failedNodesIds, rootFailureNodeId);
+      const newPlans = generatePlans(nodes, edges);
       setPlans(newPlans);
       if (newPlans.length > 0) {
         setSelectedPlanId(newPlans[0].id);
@@ -440,9 +438,7 @@ export default function App() {
           <button className={`nav-tab ${activeTab === 'GRAPH' ? 'active' : ''}`} onClick={() => setActiveTab('GRAPH')}>Dependency Graph</button>
           <button className={`nav-tab ${activeTab === 'MAP' ? 'active' : ''}`} onClick={() => setActiveTab('MAP')}>City Map</button>
           <button className={`nav-tab ${activeTab === 'PLANS' ? 'active' : ''}`} onClick={() => setActiveTab('PLANS')}>Recovery Plans</button>
-          <button className={`nav-tab ${activeTab === 'RUNWAY' ? 'active' : ''}`} onClick={() => setActiveTab('RUNWAY')}>Runway Analyst</button>
           <button className={`nav-tab ${activeTab === 'REFLECTOR' ? 'active' : ''}`} onClick={() => setActiveTab('REFLECTOR')}>Reflector Agent</button>
-          <button className={`nav-tab ${activeTab === 'ENGINE' ? 'active' : ''}`} onClick={() => setActiveTab('ENGINE')}>GraphEngine</button>
           <button className={`nav-tab ${isChatFloating ? 'active' : ''}`} onClick={() => setIsChatFloating(!isChatFloating)}>AI Assistant</button>
         </div>
 
@@ -536,14 +532,6 @@ export default function App() {
           <div className="dashboard-grid">
             <div style={{ gridColumn: '1 / -1' }}>
               <ReflectorAgent nodes={nodes} cascadeResult={cascadeResult} plans={plans} events={events} lessons={lessons} attacks={attacks} />
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'RUNWAY' && (
-          <div className="dashboard-grid">
-            <div style={{ gridColumn: '1 / -1' }}>
-              <RunwayAnalystProcess nodes={nodes} cascadeResult={cascadeResult} events={events} />
             </div>
           </div>
         )}
@@ -819,11 +807,6 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'ENGINE' && (
-          <div className="engine-container" style={{ width: '100%', height: '100%', minHeight: '600px', display: 'flex', flexDirection: 'column', padding: 'var(--space-md)' }}>
-            <BackendGraphEngine />
-          </div>
-        )}
       </main>
 
       {/* RIGHT SIDEBAR - AGENT TRACE & PENDING CONFIRMATIONS */}
