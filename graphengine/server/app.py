@@ -45,6 +45,8 @@ GRAPH_REGISTRY: Dict[str, GraphEngine] = {}
 EXECUTION_HISTORY: List[Dict[str, Any]] = []
 
 
+from graphengine.examples.resilience_pipeline import build_resilience_pipeline
+
 def register_default_graphs():
     """Register built-in showcase workflow graphs."""
     p1 = build_data_pipeline()
@@ -56,6 +58,10 @@ def register_default_graphs():
     p3 = build_async_aggregator()
     GRAPH_REGISTRY[p3.graph_id] = p3
 
+    p4 = build_resilience_pipeline()
+    # Force a recognizable ID so frontend can easily hit it
+    p4.graph_id = "resilience_pipeline"
+    GRAPH_REGISTRY[p4.graph_id] = p4
 
 register_default_graphs()
 

@@ -14,6 +14,7 @@ import type {
   RecoveryPlan, ChallengerAttack, ReflectorLesson,
   AgentTraceEntry, SimulationEvent, MonteCarloRun
 } from './types';
+import { BackendGraphEngine } from './BackendGraphEngine';
 
 // Icons for the UI
 const IconCheck = () => <span style={{ color: 'var(--neon-green)' }}>✓</span>;
@@ -34,7 +35,7 @@ export default function App() {
   const [events, setEvents] = useState<SimulationEvent[]>([]);
   const [mcResults, setMcResults] = useState<MonteCarloRun[]>([]);
   const [isRunning, setIsRunning] = useState(false);
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'GRAPH' | 'PLANS'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'GRAPH' | 'PLANS' | 'ENGINE'>('DASHBOARD');
 
   // --- Helpers ---
   const addTrace = (agent: AgentTraceEntry['agent'], action: string, detail: string, severity: AgentTraceEntry['severity'] = 'INFO') => {
@@ -56,7 +57,7 @@ export default function App() {
   }, []);
 
   // --- Event Injection ---
-  const handleInjectFailure = (nodeId: string, description: string) => {
+  const handleInjectFailure = async (nodeId: string, description: string) => {
     addTrace('SYSTEM', 'Incident Reported', description, 'CRITICAL');
     
     // Create event
@@ -71,38 +72,47 @@ export default function App() {
     setEvents(prev => [newEvent, ...prev]);
 
     // Grounding & Cascade
-    addTrace('PLANNER', 'Grounding', `Updating graph state: ${nodeId} -> FAILED`);
+    addTrace('PLANNER', 'Grounding', `Requesting GraphEngine simulation: ${nodeId} -> FAILED`);
     
-    const cascade = simulateCascade(nodes, edges, [nodeId]);
-    setCascadeResult(cascade);
-    
-    // Update nodes based on cascade
-    const newNodes = nodes.map(n => {
-      if (cascade.failedNodes.includes(n.id)) {
-        return { ...n, health: 'FAILED' as const, currentLoad: 0 };
+    try {
+      const response = await fetch('http://localhost:8000/api/graphs/resilience_pipeline/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          initial_state: {
+            nodes: nodes,
+            edges: edges,
+            failedNodeIds: [nodeId]
+          }
+        })
+      });
+      
+      const data = await response.json();
+      
+      const cascadeOut = data.node_details?.simulate_cascade?.output;
+      if (cascadeOut) {
+        setCascadeResult(cascadeOut.cascadeResult);
+        setNodes(cascadeOut.nodes);
+        addTrace('PLANNER', 'Simulation', `Cascade predicted: ${cascadeOut.cascadeResult.failedNodes.length} nodes failed, Impact: ${cascadeOut.cascadeResult.populationAffected.toLocaleString()} people.`, 'WARNING');
       }
-      if (cascade.propagationPath.some(p => p.to === n.id)) {
-        return { ...n, health: 'STRESSED' as const };
+
+      const plansOut = data.node_details?.generate_plans?.output;
+      if (plansOut && plansOut.plans) {
+        setPlans(plansOut.plans);
+        if (plansOut.plans.length > 0) setSelectedPlanId(plansOut.plans[0].id);
+        addTrace('PLANNER', 'Planning', `Generated ${plansOut.plans.length} candidate recovery plans.`);
       }
-      return n;
-    });
-    setNodes(newNodes);
 
-    addTrace('PLANNER', 'Simulation', `Cascade predicted: ${cascade.failedNodes.length} nodes failed, Impact: ${cascade.populationAffected.toLocaleString()} people.`, 'WARNING');
+      const mcOut = data.node_details?.run_monte_carlo?.output;
+      if (mcOut && mcOut.monteCarloResults) {
+        setMcResults(prev => [...prev, ...mcOut.monteCarloResults]);
+        addTrace('PLANNER', 'Monte Carlo', `Ran 100 seeded stress tests per plan.`);
+      }
 
-    // Generate Plans
-    const newPlans = generatePlans(newNodes, edges);
-    setPlans(newPlans);
-    if (newPlans.length > 0) setSelectedPlanId(newPlans[0].id);
-    
-    addTrace('PLANNER', 'Planning', `Generated ${newPlans.length} candidate recovery plans.`);
-    
-    // Monte Carlo
-    newPlans.forEach(plan => {
-      const mc = runMonteCarlo(newNodes, edges, plan);
-      setMcResults(prev => [...prev, mc]);
-    });
-    addTrace('PLANNER', 'Monte Carlo', `Ran 100 seeded stress tests per plan.`);
+    } catch (err) {
+      console.error(err);
+      addTrace('SYSTEM', 'Error', 'Failed to reach GraphEngine backend', 'CRITICAL');
+    }
   };
 
   // --- Challenge Plan ---
@@ -170,6 +180,7 @@ export default function App() {
           <button className={`nav-tab ${activeTab === 'DASHBOARD' ? 'active' : ''}`} onClick={() => setActiveTab('DASHBOARD')}>Dashboard</button>
           <button className={`nav-tab ${activeTab === 'GRAPH' ? 'active' : ''}`} onClick={() => setActiveTab('GRAPH')}>Dependency Graph</button>
           <button className={`nav-tab ${activeTab === 'PLANS' ? 'active' : ''}`} onClick={() => setActiveTab('PLANS')}>Recovery Plans</button>
+          <button className={`nav-tab ${activeTab === 'ENGINE' ? 'active' : ''}`} onClick={() => setActiveTab('ENGINE')}>GraphEngine</button>
         </div>
 
         <div className="header-status">
@@ -238,14 +249,23 @@ export default function App() {
                     <div className="mini-stat-label">Failed</div>
                   </div>
                 </div>
-                {cascadeResult && (
-                  <div className="cascade-path" style={{ marginTop: 'var(--space-md)' }}>
-                    <div className="plan-metric-label">Predicted Cascade Impact</div>
-                    <div className="stat-value" style={{ color: 'var(--neon-red)', fontSize: '24px' }}>
-                      {(cascadeResult.populationAffected / 1000).toFixed(1)}K <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>PEOPLE AFFECTED</span>
+
+                {/* Population Affected */}
+                <div className="stats-row" style={{ marginTop: 'var(--space-md)' }}>
+                  <div className="mini-stat" style={{ flex: 1, borderColor: nodes.some(n => n.health === 'FAILED') ? 'var(--neon-red)' : 'var(--border)' }}>
+                    <div className="mini-stat-value" style={{ color: nodes.some(n => n.health === 'FAILED') ? 'var(--neon-red)' : 'var(--text-h)' }}>
+                      {(cascadeResult ? cascadeResult.populationAffected : nodes.filter(n => n.health === 'FAILED').reduce((acc, n) => acc + (n.populationServed || 0), 0)).toLocaleString()}
                     </div>
+                    <div className="mini-stat-label">People Affected</div>
                   </div>
-                )}
+                  <div className="mini-stat" style={{ flex: 1, borderColor: nodes.some(n => n.health === 'AT_RISK' || n.health === 'STRESSED') ? 'var(--neon-orange)' : 'var(--border)' }}>
+                    <div className="mini-stat-value" style={{ color: nodes.some(n => n.health === 'AT_RISK' || n.health === 'STRESSED') ? 'var(--neon-orange)' : 'var(--text-h)' }}>
+                      {nodes.filter(n => n.health === 'AT_RISK' || n.health === 'STRESSED').reduce((acc, n) => acc + (n.populationServed || 0), 0).toLocaleString()}
+                    </div>
+                    <div className="mini-stat-label">People At Risk</div>
+                  </div>
+                </div>
+
               </div>
             </div>
 
@@ -392,6 +412,12 @@ export default function App() {
                 <div className="empty-state-text">No active incidents. System nominal.</div>
               </div>
             )}
+          </div>
+        )}
+
+        {activeTab === 'ENGINE' && (
+          <div className="engine-container" style={{ width: '100%', height: '100%', minHeight: '600px', display: 'flex', flexDirection: 'column', padding: 'var(--space-md)' }}>
+            <BackendGraphEngine />
           </div>
         )}
       </main>
