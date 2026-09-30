@@ -852,6 +852,26 @@ body {
   overflow: hidden;
 }
 
+/* Keep long technician-evidence forms usable without pushing the trace log
+   off-screen. The confirmation panel gets its own vertical scroll area. */
+.pending-confirmations-list {
+  max-height: min(62vh, 680px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  flex-shrink: 1;
+  scrollbar-width: thin;
+  scrollbar-color: var(--neon-orange) var(--bg-secondary);
+}
+
+.pending-confirmations-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.pending-confirmations-list::-webkit-scrollbar-thumb {
+  background: var(--neon-orange);
+  border-radius: 8px;
+}
+
 /* ---- AGENT TRACE ---- */
 .trace-list {
   display: flex;
