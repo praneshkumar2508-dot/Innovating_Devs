@@ -192,21 +192,21 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
             </div>
           </div>
 
-          <div className="dashboard-card">
-            <div className="dashboard-card-header">Plan Review</div>
+          <div className="dashboard-card" style={{ border: '1px solid var(--neon-blue)', boxShadow: '0 0 10px rgba(0, 150, 255, 0.2)' }}>
+            <div className="dashboard-card-header" style={{ color: 'var(--neon-blue)', borderBottom: '1px solid var(--neon-blue)' }}>Plan Review</div>
             <div className="dashboard-card-body" style={{ fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}>
               {selectedPlan ? (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Selected:</span> {selectedPlan.name}
+                    <span style={{ color: 'var(--text-secondary)' }}>Selected:</span> <span style={{ color: 'var(--neon-cyan)' }}>{selectedPlan.name}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ color: 'var(--text-secondary)' }}>Actions:</span> {selectedPlan.actions.length} steps
+                    <span style={{ color: 'var(--text-secondary)' }}>Actions:</span> <span style={{ color: 'var(--neon-orange)' }}>{selectedPlan.actions.length} steps</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Status:</span> <span style={{ color: selectedPlan.status === 'VERIFIED' ? 'var(--neon-green)' : 'var(--neon-orange)' }}>{selectedPlan.status}</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', borderTop: '1px dashed var(--neon-blue)', paddingTop: '16px' }}>
                     <span style={{ color: 'var(--text-secondary)' }}>Est. Time:</span> <strong style={{ color: 'var(--neon-cyan)' }}>{selectedPlan.metrics.timeToStabilize.toFixed(1)}h</strong>
                   </div>
                 </>
@@ -216,14 +216,14 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
             </div>
           </div>
 
-          <div className="dashboard-card">
-            <div className="dashboard-card-header">Root Cause</div>
+          <div className="dashboard-card" style={{ border: '1px solid var(--neon-orange)', boxShadow: '0 0 10px rgba(255, 165, 0, 0.2)' }}>
+            <div className="dashboard-card-header" style={{ color: 'var(--neon-orange)', borderBottom: '1px solid var(--neon-orange)' }}>Root Cause</div>
             <div className="dashboard-card-body">
-              <div style={{ color: 'var(--neon-orange)', fontWeight: 'bold', marginBottom: '10px' }}>
+              <div style={{ color: 'var(--neon-red)', fontWeight: 'bold', marginBottom: '10px' }}>
                 {rootCause.cause}
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '4px' }}>
-                Evidence: {rootCause.evidence}
+                Evidence: <span style={{ color: 'var(--neon-pink)' }}>{rootCause.evidence}</span>
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                 Confidence: <span style={{ color: rootCause.confidence > 0.9 ? 'var(--neon-green)' : 'var(--neon-orange)' }}>
@@ -233,14 +233,14 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
             </div>
           </div>
 
-          <div className="dashboard-card" style={{ gridColumn: '1 / -1' }}>
-            <div className="dashboard-card-header">Generated Lessons</div>
+          <div className="dashboard-card" style={{ gridColumn: '1 / -1', border: '1px solid var(--neon-green)', boxShadow: '0 0 10px rgba(57, 255, 20, 0.2)' }}>
+            <div className="dashboard-card-header" style={{ color: 'var(--neon-green)', borderBottom: '1px solid var(--neon-green)' }}>Generated Lessons</div>
             <div className="dashboard-card-body">
               {dynamicLessons.length > 0 ? (
-                <ol style={{ paddingLeft: '20px', margin: 0, color: 'var(--text-secondary)' }}>
+                <ol style={{ paddingLeft: '20px', margin: 0, color: 'var(--neon-cyan)' }}>
                   {dynamicLessons.map((lesson, i) => (
                     <li key={i} style={{ marginBottom: '10px' }}>
-                      <strong style={{ color: '#fff' }}>{lesson.label}:</strong> {lesson.text}
+                      <strong style={{ color: 'var(--neon-pink)' }}>{lesson.label}:</strong> <span style={{ color: 'var(--text-primary)' }}>{lesson.text}</span>
                     </li>
                   ))}
                 </ol>
