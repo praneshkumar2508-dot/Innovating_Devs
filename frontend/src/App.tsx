@@ -238,6 +238,15 @@ export default function App() {
     await handleInjectFailure('PWR_SUB_A', 'SHOWCASE SCENARIO: monsoon flooding disrupts Substation Alpha; observe cross-domain hospital impact.');
   };
 
+  const openShowcasePlanner = () => {
+    setActiveTab('PLANS');
+    if (nodes.some(n => n.health === 'FAILED' || n.health === 'AT_RISK')) {
+      void handleRunDecisionAnalyst();
+    } else {
+      addTrace('PLANNER', 'Showcase', 'Run the Judge Demo first to create an incident for the recovery planner.', 'WARNING');
+    }
+  };
+
   const exportDecisionBrief = () => {
     const brief = {
       generatedAt: new Date().toISOString(),
@@ -679,7 +688,9 @@ export default function App() {
                   <div style={{ flex: 1, minWidth: '240px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                     One operating picture connecting utilities, healthcare, transport, emergency response, prediction, planning, challenge testing, and human evidence verification.
                   </div>
-                  <button className="inject-btn" onClick={runJudgeShowcase} style={{ background: 'rgba(255,107,53,0.2)', borderColor: 'var(--neon-orange)' }}>▶ Run Judge Demo</button>
+                  <button className="inject-btn" onClick={() => void runJudgeShowcase()} style={{ background: 'rgba(255,107,53,0.2)', borderColor: 'var(--neon-orange)' }}>▶ Run Judge Demo</button>
+                  <button className="inject-btn" onClick={() => { setActiveTab('GRAPH'); addTrace('SYSTEM', 'Showcase', 'Opened live dependency graph.', 'INFO'); }} style={{ background: 'rgba(0,243,255,0.12)' }}>◎ Open Graph</button>
+                  <button className="inject-btn" onClick={openShowcasePlanner} style={{ background: 'rgba(57,255,20,0.12)', borderColor: 'var(--neon-green)' }}>⚡ Run Planner</button>
                   <button className="inject-btn" onClick={exportDecisionBrief} style={{ background: 'rgba(0,243,255,0.12)' }}>⇩ Export Brief</button>
                 </div>
                 <div style={{ marginTop: 'var(--space-md)', display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.75rem' }}>
