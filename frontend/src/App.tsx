@@ -284,7 +284,7 @@ export default function App() {
           'Authorization': `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}`
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
+          model: 'nousresearch/hermes-3-llama-3.1-405b:free',
           max_tokens: 1000,
           messages: [{ role: 'system', content: systemPrompt }, ...chatMessages, userMsg].map(m => ({ role: m.role, content: m.content }))
         })
