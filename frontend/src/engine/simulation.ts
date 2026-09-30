@@ -18,83 +18,105 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-// ---- CASCADE SIMULATION ----
-export function simulateCascade(
+// ---- CASCADE SIMULATION (Connected to Backend) ----
+export async function setupGraphOnBackend(nodes: InfraNode[], edges: InfraEdge[]) {
+  const assets = nodes.map(n => ({
+    asset_id: n.id,
+    asset_type: n.sector,
+    name: n.name,
+    criticality: n.criticality,
+    capacity: { value: n.capacity, unit: 'units' },
+    current_load: { value: n.currentLoad, unit: 'units' },
+    population_served: n.populationServed,
+    backup: n.backupAvailable ? {
+      type: 'generator',
+      capacity: n.capacity,
+      fuel_minutes: n.runwayHours * 60
+    } : undefined
+  }));
+
+  const dependencies = edges.map(e => ({
+    dependency_id: e.id,
+    source_asset: e.source,
+    target_asset: e.target,
+    dependency_type: e.label || 'generic',
+    required_capacity: 10
+  }));
+
+  await fetch('http://localhost:8000/api/v1/graph', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assets, dependencies })
+  });
+}
+
+export async function simulateCascade(
   nodes: InfraNode[],
   edges: InfraEdge[],
   failedNodeIds: string[],
   seed = 42
-): CascadeResult {
-  const rng = seededRandom(seed);
-  const nodeMap = new Map(nodes.map(n => [n.id, { ...n }]));
-  const failed = new Set<string>(failedNodeIds);
-  const propagationPath: CascadeResult['propagationPath'] = [];
-  let step = 0;
+): Promise<CascadeResult> {
+  await setupGraphOnBackend(nodes, edges);
 
-  // Mark initial failures
-  for (const id of failedNodeIds) {
-    const node = nodeMap.get(id);
-    if (node) {
-      node.health = 'FAILED';
-      node.currentLoad = 0;
-    }
+  const root_failures = failedNodeIds.map(id => ({
+    asset_id: id,
+    mode: 'complete'
+  }));
+
+  const res = await fetch('http://localhost:8000/api/v1/cascade/simulate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ root_failures })
+  });
+  
+  if (!res.ok) {
+    console.error("Backend simulation failed");
+    return { failedNodes: failedNodeIds, propagationPath: [], totalImpact: 0, populationAffected: 0 };
   }
 
-  // BFS cascade
-  let frontier = [...failedNodeIds];
-  while (frontier.length > 0) {
-    const nextFrontier: string[] = [];
-    step++;
-
-    for (const sourceId of frontier) {
-      const outEdges = edges.filter(e => e.source === sourceId);
-      for (const edge of outEdges) {
-        if (failed.has(edge.target)) continue;
-        const targetNode = nodeMap.get(edge.target);
-        if (!targetNode) continue;
-
-        // Propagation check
-        const roll = rng();
-        const effectiveProb = edge.propagationProbability *
-          (targetNode.backupAvailable ? 0.3 : 1.0);
-
-        if (roll < effectiveProb) {
-          failed.add(edge.target);
-          targetNode.health = 'FAILED';
-          targetNode.currentLoad = 0;
-          nextFrontier.push(edge.target);
-          propagationPath.push({ from: sourceId, to: edge.target, step });
-        } else if (roll < effectiveProb * 1.5) {
-          // Stressed but not failed
-          if (targetNode.health === 'HEALTHY') {
-            targetNode.health = 'STRESSED';
-            targetNode.runwayHours = Math.max(1, targetNode.runwayHours * 0.5);
-          }
-        }
+  const backendResult = await res.json();
+  
+  const failedNodes = Array.from(new Set([
+    ...failedNodeIds,
+    ...backendResult.affected_assets
+      .filter((a: any) => a.state === 'FAILED' || a.state === 'AT_RISK' || a.state === 'DEGRADED')
+      .map((a: any) => a.asset_id)
+  ]));
+    
+  const propagationPath: any[] = [];
+  const seenPaths = new Set();
+  
+  for (const asset of backendResult.affected_assets) {
+    if (asset.paths) {
+      for (const path of asset.paths) {
+         for (let i = 0; i < path.length - 1; i++) {
+             const from = path[i];
+             const to = path[i+1];
+             const step = i+1;
+             const pathKey = `${from}->${to}`;
+             if (!seenPaths.has(pathKey)) {
+                 seenPaths.add(pathKey);
+                 propagationPath.push({ from, to, step });
+             }
+         }
       }
     }
-    frontier = nextFrontier;
   }
-
-  const failedNodes = Array.from(failed);
-  const totalImpact = failedNodes.reduce((sum, id) => {
-    const n = nodeMap.get(id);
-    return sum + (n ? n.criticality : 0);
-  }, 0);
-  const populationAffected = failedNodes.reduce((sum, id) => {
-    const n = nodeMap.get(id);
-    return sum + (n ? n.populationServed : 0);
-  }, 0);
-
-  return { failedNodes, propagationPath, totalImpact, populationAffected };
+  
+  return {
+    failedNodes,
+    propagationPath,
+    totalImpact: backendResult.affected_assets.reduce((sum: number, a: any) => sum + a.impact_score, 0),
+    populationAffected: backendResult.summary.population_affected || 0
+  };
 }
 
 // ---- FAILURE R₀ ----
-export function computeFailureR0(
+export async function computeFailureR0(
   nodes: InfraNode[],
   edges: InfraEdge[],
-  runs = 50
-): FailureR0Result[] {
+  runs = 1 // Since backend is deterministic, we only need 1 run
+): Promise<FailureR0Result[]> {
   const results: FailureR0Result[] = [];
 
   for (const node of nodes) {
@@ -104,7 +126,7 @@ export function computeFailureR0(
     for (let i = 0; i < runs; i++) {
       // Reset all to healthy for this run
       const freshNodes = nodes.map(n => ({ ...n, health: 'HEALTHY' as const }));
-      const cascade = simulateCascade(freshNodes, edges, [node.id], 42 + i);
+      const cascade = await simulateCascade(freshNodes, edges, [node.id], 42 + i);
       const downstream = cascade.failedNodes.length - 1; // exclude self
       totalDownstream += downstream;
       worstCase = Math.max(worstCase, downstream);
@@ -163,10 +185,151 @@ export function calculateRestorationPriority(
     * urgency * feasibility;
 }
 
-// ---- PLAN GENERATION ----
+// ---- PLAN GENERATION (Backend API) ----
+export async function generatePlansBackend(
+  nodes: InfraNode[],
+  edges: InfraEdge[],
+  failedNodeIds: string[],
+  rootFailureNodeId?: string | null
+): Promise<RecoveryPlan[]> {
+  const reqNodes = nodes.map(n => ({
+    node_id: n.id,
+    name: n.name,
+    sector: n.sector,
+    node_type: n.sector,
+    criticality: n.criticality,
+    capacity: n.capacity,
+    current_load: n.currentLoad,
+    current_state: n.health === 'HEALTHY' ? 'OPERATIONAL' : n.health === 'STRESSED' ? 'DEGRADED' : 'FAILED',
+    repair_duration_minutes: n.recoveryTimeHours * 60,
+    location: "CITY",
+    skills_required: n.sector === 'POWER' ? ['electrical'] : n.sector === 'TRANSPORT' ? ['road_clearing'] : ['general'],
+    runway_minutes: n.runwayHours * 60,
+    access_requirements: [],
+    alternative_sources: []
+  }));
+
+  const reqDeps = edges.map(e => ({
+    source: e.source,
+    target: e.target,
+    dependency_type: e.label || 'generic',
+    strength: 1.0,
+    required: true,
+    failure_effect: 'DEGRADED',
+    recovery_effect: 'OPERATIONAL'
+  }));
+
+  const reqCrews = [
+    { crew_id: "C_ELEC", skills: ["electrical", "general"], current_location: "DEPOT", shift_remaining_minutes: 480, travel_time: {} },
+    { crew_id: "C_ROAD", skills: ["road_clearing", "general"], current_location: "DEPOT", shift_remaining_minutes: 480, travel_time: {} }
+  ];
+
+  try {
+    const res = await fetch('http://localhost:8001/recovery/optimize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        incident_id: "INC-" + Date.now(),
+        failed_nodes: failedNodeIds,
+        nodes: reqNodes,
+        dependencies: reqDeps,
+        crews: reqCrews,
+        available_resources: []
+      })
+    });
+    
+    if (!res.ok) throw new Error("Optimization failed");
+    const data = await res.json();
+    
+    // Map backend plans to frontend RecoveryPlan format
+    const plans: RecoveryPlan[] = [];
+    if (data.selected_plan) {
+      plans.push(mapBackendPlanToFrontend(data.selected_plan, 'Plan A (Optimal)', 'Plan A', 'VERIFIED', nodes));
+    }
+    data.alternative_plans.forEach((p: any, i: number) => {
+      plans.push(mapBackendPlanToFrontend(p, `Plan ${String.fromCharCode(66+i)} (Alternative)`, `Plan ${String.fromCharCode(66+i)}`, 'UNVERIFIED', nodes));
+    });
+    return plans;
+  } catch (e) {
+    console.error(e);
+    return generatePlans(nodes, edges, rootFailureNodeId); // fallback
+  }
+}
+
+function mapBackendPlanToFrontend(p: any, name: string, label: string, status: string, nodes: InfraNode[]): RecoveryPlan {
+  return {
+    id: p.plan_id,
+    name: name,
+    label: label,
+    phase: 'STABILIZE',
+    status: status as any,
+    metrics: {
+      meanRecovery: p.total_score,
+      worstCaseRecovery: p.minimum_deadline_margin_minutes,
+      criticalOutageProbability: 0.1,
+      cascadedFailures: p.cascade_reduction || 0,
+      timeToStabilize: p.completion_time_minutes / 60,
+      crewUtilization: 0.8,
+      hospitalProtected: true,
+      waterProtected: true
+    },
+    actions: p.actions.map((a: any) => {
+      let type = 'REPAIR';
+      let targetId = a.action_id.split('_').pop() || '';
+      
+      if (a.action_id.startsWith('REPAIR_')) {
+        targetId = a.action_id.substring('REPAIR_'.length);
+      } else if (a.action_id.startsWith('BACKUP_')) {
+        targetId = a.action_id.substring('BACKUP_'.length);
+        type = 'BACKUP_ACTIVATE';
+      } else if (a.action_id.startsWith('CLEAR_')) {
+        targetId = a.action_id.substring('CLEAR_'.length);
+        type = 'CLEAR_ACCESS';
+      } else if (a.action_id.startsWith('TRANSFER_')) {
+        const match = a.action_id.match(/TRANSFER_(.*)_TO_(.*)/);
+        if (match) targetId = match[1];
+        type = 'REROUTE';
+      }
+
+      const targetNode = nodes.find(n => n.id === targetId);
+      let desc = `Action: ${a.action_id}`;
+      
+      if (targetNode) {
+        if (targetNode.sector === 'TRANSPORT' && type === 'REPAIR') {
+          desc = `Dispatch Heavy Machinery to Clear Debris on ${targetNode.name}`;
+        } else if (targetNode.sector === 'POWER' && type === 'REPAIR') {
+          desc = `Deploy Specialized Electrical Crew to Repair ${targetNode.name}`;
+        } else if (targetNode.sector === 'WATER' && type === 'REPAIR') {
+          desc = `Dispatch Emergency Plumbing Team to ${targetNode.name}`;
+        } else if (type === 'BACKUP_ACTIVATE') {
+          desc = `Activate Emergency Backup Systems for ${targetNode.name}`;
+        } else if (type === 'CLEAR_ACCESS') {
+          desc = `Clear Access Routes leading to ${targetNode.name}`;
+        } else if (type === 'REROUTE') {
+          desc = `Reroute Critical Load away from ${targetNode.name}`;
+        } else {
+          desc = `Restore Operations at ${targetNode.name}`;
+        }
+      }
+
+      return {
+        id: a.action_id,
+        type: type,
+        targetNodeId: targetId,
+        description: desc,
+        estimatedTimeHours: (a.completion_minute - a.start_minute) / 60,
+        crewRequired: 1,
+        priority: a.sequence
+      };
+    })
+  };
+}
+
+// ---- PLAN GENERATION (Mock Fallback — Incident-Specific) ----
 export function generatePlans(
   nodes: InfraNode[],
-  edges: InfraEdge[]
+  edges: InfraEdge[],
+  rootFailureNodeId?: string | null
 ): RecoveryPlan[] {
   const failedNodes = nodes.filter(n => n.health === 'FAILED' || n.health === 'AT_RISK');
   if (failedNodes.length === 0) return [];
@@ -176,97 +339,197 @@ export function generatePlans(
     priority: calculateRestorationPriority(n, edges, nodes),
   })).sort((a, b) => b.priority - a.priority);
 
-  // Plan A: Direct repair of highest priority
-  const planAActions: PlanAction[] = priorities.slice(0, 3).map((p, i) => ({
-    id: `a-${i}`,
-    type: 'REPAIR' as const,
-    targetNodeId: p.node.id,
-    description: `Repair ${p.node.name}`,
-    estimatedTimeHours: p.node.recoveryTimeHours,
-    crewRequired: p.node.crewRequirement,
-    priority: i + 1,
-  }));
+  const primaryNode = priorities[0]?.node;
+  if (!primaryNode) return [];
 
-  // Plan B: Backup activation + rerouting
-  const planBActions: PlanAction[] = priorities.slice(0, 2).map((p, i) => ({
-    id: `b-${i}`,
-    type: 'BACKUP_ACTIVATE' as const,
-    targetNodeId: p.node.id,
-    description: `Activate backup for ${p.node.name}`,
-    estimatedTimeHours: p.node.recoveryTimeHours * 0.3,
-    crewRequired: Math.max(1, p.node.crewRequirement - 1),
-    priority: i + 1,
-  }));
-  planBActions.push({
-    id: 'b-reroute',
-    type: 'REROUTE',
-    targetNodeId: priorities[0]?.node.id ?? '',
-    description: 'Reroute through backup substation',
-    estimatedTimeHours: 2,
-    crewRequired: 2,
-    priority: 3,
-  });
+  // Use the ROOT CAUSE node's sector to determine plan type.
+  // This prevents cascaded failures from overriding the actual incident type.
+  let rootSector = primaryNode.sector;
+  if (rootFailureNodeId) {
+    const rootNode = nodes.find(n => n.id === rootFailureNodeId);
+    if (rootNode) {
+      rootSector = rootNode.sector;
+      // Also ensure the root node is at the front of priorities
+      const rootIdx = priorities.findIndex(p => p.node.id === rootFailureNodeId);
+      if (rootIdx > 0) {
+        const [rootEntry] = priorities.splice(rootIdx, 1);
+        priorities.unshift(rootEntry);
+      }
+    }
+  }
 
-  // Plan C: Temporary generator + controlled degradation
-  const planCActions: PlanAction[] = [
-    {
-      id: 'c-0',
-      type: 'DEPLOY_GENERATOR',
-      targetNodeId: priorities[0]?.node.id ?? '',
-      description: 'Deploy temporary generator',
-      estimatedTimeHours: 1.5,
-      crewRequired: 2,
-      priority: 1,
-    },
-    {
-      id: 'c-1',
-      type: 'LOAD_SHED',
-      targetNodeId: priorities[0]?.node.id ?? '',
-      description: 'Controlled load reduction on non-critical',
-      estimatedTimeHours: 0.5,
-      crewRequired: 1,
-      priority: 2,
-    },
-    {
-      id: 'c-2',
-      type: 'FUEL_ALLOCATION',
-      targetNodeId: 'FUEL_DEPOT_A',
-      description: 'Pre-position emergency fuel',
-      estimatedTimeHours: 1,
-      crewRequired: 1,
-      priority: 3,
-    },
-  ];
+  // Build 3 incident-specific plans based on the root cause sector
+  if (rootSector === 'TRANSPORT') {
+    return generateTransportPlans(nodes, edges, priorities);
+  } else if (rootSector === 'WATER') {
+    return generateWaterPlans(nodes, edges, priorities);
+  } else if (rootSector === 'POWER') {
+    return generatePowerPlans(nodes, edges, priorities);
+  } else {
+    return generateGenericPlans(nodes, edges, priorities);
+  }
+}
 
-  return [
-    {
-      id: 'plan-a',
-      name: 'Direct Repair',
-      label: 'Plan A',
-      phase: 'RESTORE',
-      actions: planAActions,
-      metrics: scorePlan(nodes, edges, planAActions),
-      status: 'PROPOSED',
-    },
-    {
-      id: 'plan-b',
-      name: 'Backup & Reroute',
-      label: 'Plan B',
-      phase: 'STABILIZE',
-      actions: planBActions,
-      metrics: scorePlan(nodes, edges, planBActions),
-      status: 'PROPOSED',
-    },
-    {
-      id: 'plan-c',
-      name: 'Generator + Controlled Burn',
-      label: 'Plan C',
-      phase: 'STABILIZE',
-      actions: planCActions,
-      metrics: scorePlan(nodes, edges, planCActions),
-      status: 'PROPOSED',
-    },
-  ];
+function generateTransportPlans(
+  nodes: InfraNode[], edges: InfraEdge[],
+  priorities: { node: InfraNode; priority: number }[]
+): RecoveryPlan[] {
+  const primary = priorities[0]!.node;
+  const affected = priorities.map(p => p.node);
+  
+  // Find downstream nodes that depend on this road for crew access
+  const dependents = edges.filter(e => e.source === primary.id).map(e => nodes.find(n => n.id === e.target)).filter(Boolean) as InfraNode[];
+  
+  const planA: RecoveryPlan = {
+    id: `plan-road-a-${Date.now()}`, name: 'Rapid Debris Clearance', label: 'Plan A', phase: 'STABILIZE', status: 'PROPOSED',
+    actions: [
+      { id: 'ra-0', type: 'CLEAR_ACCESS', targetNodeId: primary.id, description: `Deploy Heavy Machinery (JCB + Bulldozer) to clear debris on ${primary.name}`, estimatedTimeHours: 3, crewRequired: 6, priority: 1 },
+      { id: 'ra-1', type: 'REPAIR', targetNodeId: primary.id, description: `Road surface emergency patching and pothole repair on ${primary.name}`, estimatedTimeHours: 4, crewRequired: 4, priority: 2 },
+      ...dependents.slice(0, 2).map((d, i) => ({ id: `ra-dep-${i}`, type: 'REPAIR' as const, targetNodeId: d.id, description: `Restore crew access path to ${d.name} via alternate routing`, estimatedTimeHours: 1, crewRequired: 2, priority: 3 + i }))
+    ],
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  const planB: RecoveryPlan = {
+    id: `plan-road-b-${Date.now()}`, name: 'Detour + Phased Repair', label: 'Plan B', phase: 'STABILIZE', status: 'PROPOSED',
+    actions: [
+      { id: 'rb-0', type: 'REROUTE', targetNodeId: primary.id, description: `Open emergency detour via Bridge Road R2 and secondary arterials`, estimatedTimeHours: 0.5, crewRequired: 3, priority: 1 },
+      { id: 'rb-1', type: 'REPAIR', targetNodeId: primary.id, description: `Deploy traffic control barriers and signage around ${primary.name}`, estimatedTimeHours: 1, crewRequired: 2, priority: 2 },
+      { id: 'rb-2', type: 'REPAIR', targetNodeId: primary.id, description: `Schedule overnight lane-by-lane road repair on ${primary.name}`, estimatedTimeHours: 8, crewRequired: 8, priority: 3 },
+    ],
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  const planC: RecoveryPlan = {
+    id: `plan-road-c-${Date.now()}`, name: 'Emergency Airlift + Temporary Bridge', label: 'Plan C', phase: 'RESTORE', status: 'PROPOSED',
+    actions: [
+      { id: 'rc-0', type: 'DEPLOY_GENERATOR', targetNodeId: primary.id, description: `Request military pontoon bridge deployment near ${primary.name}`, estimatedTimeHours: 4, crewRequired: 10, priority: 1 },
+      { id: 'rc-1', type: 'REROUTE', targetNodeId: primary.id, description: `Establish helicopter supply corridor for critical hospital supplies`, estimatedTimeHours: 1.5, crewRequired: 3, priority: 2 },
+      { id: 'rc-2', type: 'REPAIR', targetNodeId: primary.id, description: `Full structural assessment and permanent repair of ${primary.name}`, estimatedTimeHours: 14, crewRequired: 12, priority: 3 },
+    ],
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  return [planA, planB, planC];
+}
+
+function generateWaterPlans(
+  nodes: InfraNode[], edges: InfraEdge[],
+  priorities: { node: InfraNode; priority: number }[]
+): RecoveryPlan[] {
+  const primary = priorities[0]!.node;
+  const hospitals = nodes.filter(n => n.sector === 'HEALTHCARE');
+  
+  const planA: RecoveryPlan = {
+    id: `plan-water-a-${Date.now()}`, name: 'Emergency Pump Repair', label: 'Plan A', phase: 'RESTORE', status: 'PROPOSED',
+    actions: [
+      { id: 'wa-0', type: 'REPAIR', targetNodeId: primary.id, description: `Dispatch Emergency Plumbing & Pump Team to ${primary.name}`, estimatedTimeHours: primary.recoveryTimeHours, crewRequired: primary.crewRequirement, priority: 1 },
+      { id: 'wa-1', type: 'REPAIR', targetNodeId: primary.id, description: `Replace faulty pressure regulation valves at ${primary.name}`, estimatedTimeHours: 2, crewRequired: 2, priority: 2 },
+      ...hospitals.slice(0, 1).map((h, i) => ({ id: `wa-h-${i}`, type: 'REROUTE' as const, targetNodeId: h.id, description: `Priority water supply reroute to ${h.name} via emergency tankers`, estimatedTimeHours: 1, crewRequired: 2, priority: 3 }))
+    ],
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  const planB: RecoveryPlan = {
+    id: `plan-water-b-${Date.now()}`, name: 'Tanker + Backup Reservoir', label: 'Plan B', phase: 'STABILIZE', status: 'PROPOSED',
+    actions: [
+      { id: 'wb-0', type: 'BACKUP_ACTIVATE', targetNodeId: 'WTR_RES_C', description: `Switch to Reservoir C as primary supply source`, estimatedTimeHours: 0.5, crewRequired: 2, priority: 1 },
+      { id: 'wb-1', type: 'DEPLOY_GENERATOR', targetNodeId: primary.id, description: `Deploy 20 emergency water tankers across affected zones`, estimatedTimeHours: 2, crewRequired: 4, priority: 2 },
+      { id: 'wb-2', type: 'REPAIR', targetNodeId: primary.id, description: `Begin parallel pump motor replacement at ${primary.name}`, estimatedTimeHours: 6, crewRequired: 4, priority: 3 },
+    ],
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  const planC: RecoveryPlan = {
+    id: `plan-water-c-${Date.now()}`, name: 'Controlled Rationing + Deep Repair', label: 'Plan C', phase: 'STABILIZE', status: 'PROPOSED',
+    actions: [
+      { id: 'wc-0', type: 'LOAD_SHED', targetNodeId: primary.id, description: `Implement zone-based water rationing to conserve reservoir levels`, estimatedTimeHours: 0.5, crewRequired: 1, priority: 1 },
+      { id: 'wc-1', type: 'REPAIR', targetNodeId: primary.id, description: `Full pipeline integrity scan and leak isolation at ${primary.name}`, estimatedTimeHours: 4, crewRequired: 5, priority: 2 },
+      { id: 'wc-2', type: 'REPAIR', targetNodeId: primary.id, description: `Chemical treatment reset and water quality certification`, estimatedTimeHours: 3, crewRequired: 3, priority: 3 },
+    ],
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  return [planA, planB, planC];
+}
+
+function generatePowerPlans(
+  nodes: InfraNode[], edges: InfraEdge[],
+  priorities: { node: InfraNode; priority: number }[]
+): RecoveryPlan[] {
+  const primary = priorities[0]!.node;
+  const downstream = edges.filter(e => e.source === primary.id)
+    .map(e => nodes.find(n => n.id === e.target)).filter(Boolean) as InfraNode[];
+  
+  const planA: RecoveryPlan = {
+    id: `plan-power-a-${Date.now()}`, name: 'Direct Electrical Repair', label: 'Plan A', phase: 'RESTORE', status: 'PROPOSED',
+    actions: [
+      { id: 'pa-0', type: 'REPAIR', targetNodeId: primary.id, description: `Deploy Specialized Electrical Crew to Repair ${primary.name} — transformer replacement`, estimatedTimeHours: primary.recoveryTimeHours, crewRequired: primary.crewRequirement, priority: 1 },
+      ...downstream.slice(0, 2).map((d, i) => ({ id: `pa-d-${i}`, type: 'REPAIR' as const, targetNodeId: d.id, description: `Restore power supply line to ${d.name}`, estimatedTimeHours: 1, crewRequired: 2, priority: 2 + i }))
+    ],
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  const planB: RecoveryPlan = {
+    id: `plan-power-b-${Date.now()}`, name: 'Generator Bridge + Grid Reroute', label: 'Plan B', phase: 'STABILIZE', status: 'PROPOSED',
+    actions: [
+      { id: 'pb-0', type: 'DEPLOY_GENERATOR', targetNodeId: primary.id, description: `Deploy 3 mobile diesel generators at ${primary.name} site`, estimatedTimeHours: 1.5, crewRequired: 3, priority: 1 },
+      { id: 'pb-1', type: 'REROUTE', targetNodeId: primary.id, description: `Reroute grid load through Substation Beta bypass circuit`, estimatedTimeHours: 1, crewRequired: 2, priority: 2 },
+      { id: 'pb-2', type: 'FUEL_ALLOCATION', targetNodeId: 'FUEL_DEPOT_A', description: `Pre-position 2000L emergency diesel at generator sites`, estimatedTimeHours: 1, crewRequired: 1, priority: 3 },
+      { id: 'pb-3', type: 'REPAIR', targetNodeId: primary.id, description: `Begin parallel transformer repair at ${primary.name}`, estimatedTimeHours: 5, crewRequired: 4, priority: 4 },
+    ],
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  const planC: RecoveryPlan = {
+    id: `plan-power-c-${Date.now()}`, name: 'Load Shedding + Critical Priority', label: 'Plan C', phase: 'STABILIZE', status: 'PROPOSED',
+    actions: [
+      { id: 'pc-0', type: 'LOAD_SHED', targetNodeId: primary.id, description: `Controlled load shedding — disconnect non-critical industrial zones`, estimatedTimeHours: 0.5, crewRequired: 1, priority: 1 },
+      { id: 'pc-1', type: 'BACKUP_ACTIVATE', targetNodeId: 'HC_HOSP_A', description: `Activate hospital backup generators to protect critical care`, estimatedTimeHours: 0.25, crewRequired: 1, priority: 2 },
+      { id: 'pc-2', type: 'REPAIR', targetNodeId: primary.id, description: `Full transformer overhaul and grid reconnection at ${primary.name}`, estimatedTimeHours: 8, crewRequired: 6, priority: 3 },
+    ],
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  return [planA, planB, planC];
+}
+
+function generateGenericPlans(
+  nodes: InfraNode[], edges: InfraEdge[],
+  priorities: { node: InfraNode; priority: number }[]
+): RecoveryPlan[] {
+  const primary = priorities[0]!.node;
+  
+  const planA: RecoveryPlan = {
+    id: `plan-gen-a-${Date.now()}`, name: 'Direct Repair Strategy', label: 'Plan A', phase: 'RESTORE', status: 'PROPOSED',
+    actions: priorities.slice(0, 3).map((p, i) => ({
+      id: `ga-${i}`, type: 'REPAIR' as const, targetNodeId: p.node.id,
+      description: `Restore Operations at ${p.node.name}`,
+      estimatedTimeHours: p.node.recoveryTimeHours, crewRequired: p.node.crewRequirement, priority: i + 1,
+    })),
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  const planB: RecoveryPlan = {
+    id: `plan-gen-b-${Date.now()}`, name: 'Backup Systems Activation', label: 'Plan B', phase: 'STABILIZE', status: 'PROPOSED',
+    actions: priorities.slice(0, 2).map((p, i) => ({
+      id: `gb-${i}`, type: 'BACKUP_ACTIVATE' as const, targetNodeId: p.node.id,
+      description: `Activate Emergency Backup Systems for ${p.node.name}`,
+      estimatedTimeHours: p.node.recoveryTimeHours * 0.3, crewRequired: Math.max(1, p.node.crewRequirement - 1), priority: i + 1,
+    })),
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  const planC: RecoveryPlan = {
+    id: `plan-gen-c-${Date.now()}`, name: 'Controlled Degradation', label: 'Plan C', phase: 'STABILIZE', status: 'PROPOSED',
+    actions: [
+      { id: 'gc-0', type: 'LOAD_SHED', targetNodeId: primary.id, description: `Reduce load on ${primary.name} and connected systems`, estimatedTimeHours: 0.5, crewRequired: 1, priority: 1 },
+      { id: 'gc-1', type: 'REPAIR', targetNodeId: primary.id, description: `Full diagnostic and repair of ${primary.name}`, estimatedTimeHours: primary.recoveryTimeHours, crewRequired: primary.crewRequirement, priority: 2 },
+    ],
+    metrics: scorePlan(nodes, edges, [])
+  };
+  
+  return [planA, planB, planC];
 }
 
 // ---- PLAN SCORING ----

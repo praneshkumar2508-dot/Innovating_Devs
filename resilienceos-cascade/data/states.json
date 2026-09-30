@@ -1,0 +1,27 @@
+[
+  {
+    "asset_id": "POWER_A",
+    "status": "OPERATIONAL",
+    "capacity_available_percent": 100
+  },
+  {
+    "asset_id": "POWER_B",
+    "status": "OPERATIONAL",
+    "capacity_available_percent": 100
+  },
+  {
+    "asset_id": "HOSPITAL_01",
+    "status": "OPERATIONAL",
+    "capacity_available_percent": 100
+  },
+  {
+    "asset_id": "WATER_PLANT_01",
+    "status": "OPERATIONAL",
+    "capacity_available_percent": 100
+  },
+  {
+    "asset_id": "TELECOM_01",
+    "status": "OPERATIONAL",
+    "capacity_available_percent": 100
+  }
+]

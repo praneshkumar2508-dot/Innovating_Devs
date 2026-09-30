@@ -1422,3 +1422,83 @@ body {
   color: var(--text-primary);
   font-weight: 600;
 }
+
+:root {
+  /* Core UI Colors */
+  --bg-secondary: #111827;
+  --border-color: rgba(148, 163, 184, 0.1);
+  --text-secondary: #94a3b8;
+  
+  /* Cybernetic Animation Colors */
+  --accent-cyan: #06d6a0;
+  --accent-blue: #4cc9f0;
+  --accent-purple: #7b61ff;
+  --accent-pink: #ec4899;
+  --accent-red: #ef4444;
+  /* Fonts */
+  --font-mono: "JetBrains Mono", "Fira Code", "Courier New", monospace;
+}
+/* Base styles for the outer card and button (adjust as needed for your site) */
+.chart-card {
+  padding: 24px;
+  border-radius: 12px;
+  background: rgba(17, 24, 39, 0.8);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.sim-btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.sim-btn:hover {
+  opacity: 0.8;
+}
+
+/* Animated Map Lines */
+.animated-dependency-line {
+    stroke-dashoffset: 100;
+    animation: dashAnim 3s linear infinite;
+}
+@keyframes dashAnim {
+    to { stroke-dashoffset: 0; }
+}
+/* Moving Data Packets on Map */
+.data-packet {
+    width: 4px;
+    height: 4px;
+    background: #3b91ff;
+    box-shadow: 0 0 8px #3b91ff, 0 0 12px #3b91ff;
+    border-radius: 50%;
+    position: absolute;
+    z-index: 500;
+    pointer-events: none;
+}
+/* Hospital Corridors */
+.hospital-corridor-main {
+    stroke-dasharray: 15, 10;
+    animation: flowData 20s linear infinite forwards;
+    filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.8));
+}
+.hospital-corridor-pulse {
+    stroke-dasharray: 2, 30;
+    animation: flowData 4s linear infinite forwards;
+    filter: drop-shadow(0 0 6px rgba(255, 255, 255, 1));
+}
+@keyframes flowData {
+    to { stroke-dashoffset: -1000; }
+}
+/* Custom Tooltip Styling */
+.node-tooltip {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    border-radius: 0.5rem;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    padding: 0.5rem;
+}

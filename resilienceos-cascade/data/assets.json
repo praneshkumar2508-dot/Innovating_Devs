@@ -1,0 +1,152 @@
+[
+  {
+    "asset_id": "POWER_A",
+    "asset_type": "power_station",
+    "name": "Central Power Station A",
+    "status": "OPERATIONAL",
+    "criticality": 0.95,
+    "capacity": { "value": 100, "unit": "MW" },
+    "current_load": { "value": 75, "unit": "MW" },
+    "population_served": 120000,
+    "location": { "latitude": 13.08, "longitude": 80.27 }
+  },
+  {
+    "asset_id": "POWER_B",
+    "asset_type": "power_station",
+    "name": "Backup Power Station B",
+    "status": "OPERATIONAL",
+    "criticality": 0.90,
+    "capacity": { "value": 100, "unit": "MW" },
+    "current_load": { "value": 60, "unit": "MW" },
+    "population_served": 80000,
+    "location": { "latitude": 13.10, "longitude": 80.30 }
+  },
+  {
+    "asset_id": "SUBSTATION_A",
+    "asset_type": "substation",
+    "name": "Distribution Substation A",
+    "status": "OPERATIONAL",
+    "criticality": 0.85,
+    "capacity": { "value": 50, "unit": "MW" },
+    "current_load": { "value": 40, "unit": "MW" },
+    "population_served": 60000,
+    "location": { "latitude": 13.07, "longitude": 80.25 }
+  },
+  {
+    "asset_id": "HOSPITAL_01",
+    "asset_type": "hospital",
+    "name": "City General Hospital",
+    "status": "OPERATIONAL",
+    "criticality": 1.0,
+    "capacity": { "value": 500, "unit": "beds" },
+    "current_load": { "value": 420, "unit": "beds" },
+    "population_served": 50000,
+    "location": { "latitude": 13.06, "longitude": 80.24 },
+    "backup": {
+      "type": "generator",
+      "capacity": 30,
+      "fuel_minutes": 90
+    },
+    "requirements": [
+      { "type": "electricity", "minimum_service": 20, "logic": "OR" },
+      { "type": "water", "minimum_service": 10, "logic": "AND" }
+    ]
+  },
+  {
+    "asset_id": "WATER_PLANT_01",
+    "asset_type": "water_plant",
+    "name": "Municipal Water Treatment Plant",
+    "status": "OPERATIONAL",
+    "criticality": 0.95,
+    "capacity": { "value": 200, "unit": "m3/h" },
+    "current_load": { "value": 150, "unit": "m3/h" },
+    "population_served": 50000,
+    "location": { "latitude": 13.09, "longitude": 80.28 },
+    "backup": {
+      "type": "storage",
+      "capacity": 1000,
+      "fuel_minutes": 35
+    },
+    "requirements": [
+      { "type": "electricity", "minimum_service": 30, "logic": "OR" }
+    ]
+  },
+  {
+    "asset_id": "TELECOM_01",
+    "asset_type": "telecom_tower",
+    "name": "Central Telecom Tower",
+    "status": "OPERATIONAL",
+    "criticality": 0.85,
+    "capacity": { "value": 10000, "unit": "connections" },
+    "current_load": { "value": 8500, "unit": "connections" },
+    "population_served": 75000,
+    "location": { "latitude": 13.075, "longitude": 80.26 },
+    "backup": {
+      "type": "battery",
+      "capacity": 5,
+      "fuel_minutes": 120
+    },
+    "requirements": [
+      { "type": "electricity", "minimum_service": 10, "logic": "OR" }
+    ]
+  },
+  {
+    "asset_id": "TELECOM_02",
+    "asset_type": "telecom_tower",
+    "name": "North Telecom Tower",
+    "status": "OPERATIONAL",
+    "criticality": 0.75,
+    "capacity": { "value": 5000, "unit": "connections" },
+    "current_load": { "value": 4000, "unit": "connections" },
+    "population_served": 40000,
+    "location": { "latitude": 13.12, "longitude": 80.32 }
+  },
+  {
+    "asset_id": "EMERGENCY_01",
+    "asset_type": "emergency_station",
+    "name": "City Emergency Services HQ",
+    "status": "OPERATIONAL",
+    "criticality": 1.0,
+    "capacity": { "value": 50, "unit": "units" },
+    "current_load": { "value": 35, "unit": "units" },
+    "population_served": 120000,
+    "location": { "latitude": 13.065, "longitude": 80.235 },
+    "requirements": [
+      { "type": "electricity", "minimum_service": 15, "logic": "OR" },
+      { "type": "telecommunications", "minimum_service": 1, "logic": "OR" }
+    ]
+  },
+  {
+    "asset_id": "FUEL_DEPOT_01",
+    "asset_type": "fuel_station",
+    "name": "Central Fuel Depot",
+    "status": "OPERATIONAL",
+    "criticality": 0.70,
+    "capacity": { "value": 50000, "unit": "liters" },
+    "current_load": { "value": 35000, "unit": "liters" },
+    "location": { "latitude": 13.085, "longitude": 80.275 }
+  },
+  {
+    "asset_id": "WATER_PUMP_01",
+    "asset_type": "water_pump",
+    "name": "District Water Pump Station",
+    "status": "OPERATIONAL",
+    "criticality": 0.80,
+    "capacity": { "value": 100, "unit": "m3/h" },
+    "current_load": { "value": 70, "unit": "m3/h" },
+    "population_served": 30000,
+    "location": { "latitude": 13.095, "longitude": 80.29 },
+    "requirements": [
+      { "type": "electricity", "minimum_service": 15, "logic": "OR" }
+    ]
+  },
+  {
+    "asset_id": "ROAD_MAIN_01",
+    "asset_type": "road",
+    "name": "Main Highway Corridor",
+    "status": "OPERATIONAL",
+    "criticality": 0.60,
+    "population_served": 100000,
+    "location": { "latitude": 13.07, "longitude": 80.26 }
+  }
+]

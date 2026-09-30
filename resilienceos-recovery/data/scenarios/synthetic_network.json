@@ -1,0 +1,41 @@
+{
+  "incident_id": "INC-MASSIVE-001",
+  "failed_nodes": ["SUB01", "ROAD01"],
+  "nodes": [
+    {
+      "node_id": "PS01", "name": "Power Station 1", "sector": "power", "node_type": "generation", 
+      "criticality": 0.9, "capacity": 500, "current_load": 400, "current_state": "OPERATIONAL", 
+      "repair_duration_minutes": 0, "location": "Z_NORTH"
+    },
+    {
+      "node_id": "SUB01", "name": "Substation 1", "sector": "power", "node_type": "distribution", 
+      "criticality": 0.8, "capacity": 100, "current_load": 80, "current_state": "FAILED", 
+      "repair_duration_minutes": 45, "location": "Z_EAST", "skills_required": ["electrical"], "access_requirements": ["ROAD01"]
+    },
+    {
+      "node_id": "WATER01", "name": "Water Plant 1", "sector": "water", "node_type": "treatment", 
+      "criticality": 0.95, "capacity": 100, "current_load": 60, "current_state": "DEGRADED", 
+      "repair_duration_minutes": 0, "location": "Z_EAST", "runway_minutes": 60
+    },
+    {
+      "node_id": "HOSP01", "name": "City Hospital", "sector": "healthcare", "node_type": "hospital", 
+      "criticality": 1.0, "capacity": 200, "current_load": 180, "current_state": "DEGRADED", 
+      "repair_duration_minutes": 0, "location": "Z_CENTER", "runway_minutes": 35, "backup_capacity": 50
+    },
+    {
+      "node_id": "ROAD01", "name": "Highway 1", "sector": "roads", "node_type": "access", 
+      "criticality": 0.5, "capacity": 100, "current_load": 50, "current_state": "FAILED", 
+      "repair_duration_minutes": 20, "location": "Z_EAST", "skills_required": ["road_clearing"]
+    }
+  ],
+  "dependencies": [
+    {"source": "PS01", "target": "SUB01", "dependency_type": "POWER", "strength": 1.0, "required": true, "failure_effect": "FAILED", "recovery_effect": "OPERATIONAL"},
+    {"source": "SUB01", "target": "WATER01", "dependency_type": "POWER", "strength": 1.0, "required": true, "failure_effect": "DEGRADED", "recovery_effect": "OPERATIONAL"},
+    {"source": "SUB01", "target": "HOSP01", "dependency_type": "POWER", "strength": 1.0, "required": true, "failure_effect": "DEGRADED", "recovery_effect": "OPERATIONAL"}
+  ],
+  "crews": [
+    {"crew_id": "C_ROAD", "skills": ["road_clearing"], "current_location": "DEPOT", "shift_remaining_minutes": 480, "travel_time": {"ROAD01": 10}},
+    {"crew_id": "C_ELEC", "skills": ["electrical"], "current_location": "DEPOT", "shift_remaining_minutes": 480, "travel_time": {"SUB01": 15}}
+  ],
+  "available_resources": ["generator_fuel", "fuse", "truck"]
+}

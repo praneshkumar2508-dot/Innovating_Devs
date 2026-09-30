@@ -53,7 +53,7 @@ export interface FailureR0Result {
 
 export interface PlanAction {
   id: string;
-  type: 'REPAIR' | 'REROUTE' | 'DEPLOY_GENERATOR' | 'FUEL_ALLOCATION' | 'LOAD_SHED' | 'BACKUP_ACTIVATE' | 'CREW_DISPATCH';
+  type: 'REPAIR' | 'REROUTE' | 'DEPLOY_GENERATOR' | 'FUEL_ALLOCATION' | 'LOAD_SHED' | 'BACKUP_ACTIVATE' | 'CREW_DISPATCH' | 'CLEAR_ACCESS';
   targetNodeId: string;
   description: string;
   estimatedTimeHours: number;
@@ -112,7 +112,7 @@ export interface RegressionTest {
 export interface AgentTraceEntry {
   id: string;
   timestamp: number;
-  agent: 'PLANNER' | 'CHALLENGER' | 'REFLECTOR' | 'SYSTEM';
+  agent: 'PLANNER' | 'CHALLENGER' | 'REFLECTOR' | 'SYSTEM' | 'PREDICTIVE_ANALYST';
   action: string;
   detail: string;
   severity: 'INFO' | 'WARNING' | 'CRITICAL' | 'SUCCESS';

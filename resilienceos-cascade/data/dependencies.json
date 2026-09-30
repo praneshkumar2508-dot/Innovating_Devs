@@ -1,0 +1,134 @@
+[
+  {
+    "dependency_id": "DEP_001",
+    "source_asset": "POWER_A",
+    "target_asset": "HOSPITAL_01",
+    "dependency_type": "electricity",
+    "required_capacity": 20,
+    "capacity_unit": "MW",
+    "dependency_strength": 1.0,
+    "critical": true,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_002",
+    "source_asset": "POWER_A",
+    "target_asset": "WATER_PLANT_01",
+    "dependency_type": "electricity",
+    "required_capacity": 30,
+    "capacity_unit": "MW",
+    "dependency_strength": 1.0,
+    "critical": true,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_003",
+    "source_asset": "POWER_A",
+    "target_asset": "TELECOM_01",
+    "dependency_type": "electricity",
+    "required_capacity": 10,
+    "capacity_unit": "MW",
+    "dependency_strength": 1.0,
+    "critical": true,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_004",
+    "source_asset": "POWER_B",
+    "target_asset": "HOSPITAL_01",
+    "dependency_type": "electricity",
+    "required_capacity": 20,
+    "capacity_unit": "MW",
+    "dependency_strength": 0.8,
+    "critical": true,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_005",
+    "source_asset": "POWER_A",
+    "target_asset": "SUBSTATION_A",
+    "dependency_type": "electricity",
+    "required_capacity": 40,
+    "capacity_unit": "MW",
+    "dependency_strength": 1.0,
+    "critical": true,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_006",
+    "source_asset": "SUBSTATION_A",
+    "target_asset": "EMERGENCY_01",
+    "dependency_type": "electricity",
+    "required_capacity": 15,
+    "capacity_unit": "MW",
+    "dependency_strength": 1.0,
+    "critical": true,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_007",
+    "source_asset": "WATER_PLANT_01",
+    "target_asset": "HOSPITAL_01",
+    "dependency_type": "water",
+    "required_capacity": 10,
+    "capacity_unit": "m3/h",
+    "dependency_strength": 1.0,
+    "critical": true,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_008",
+    "source_asset": "TELECOM_01",
+    "target_asset": "EMERGENCY_01",
+    "dependency_type": "telecommunications",
+    "required_capacity": 1,
+    "capacity_unit": "service",
+    "dependency_strength": 1.0,
+    "critical": true,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_009",
+    "source_asset": "POWER_A",
+    "target_asset": "WATER_PUMP_01",
+    "dependency_type": "electricity",
+    "required_capacity": 15,
+    "capacity_unit": "MW",
+    "dependency_strength": 1.0,
+    "critical": true,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_010",
+    "source_asset": "WATER_PUMP_01",
+    "target_asset": "WATER_PLANT_01",
+    "dependency_type": "water",
+    "required_capacity": 50,
+    "capacity_unit": "m3/h",
+    "dependency_strength": 0.7,
+    "critical": false,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_011",
+    "source_asset": "POWER_B",
+    "target_asset": "TELECOM_02",
+    "dependency_type": "electricity",
+    "required_capacity": 8,
+    "capacity_unit": "MW",
+    "dependency_strength": 1.0,
+    "critical": true,
+    "failure_threshold": 0.0
+  },
+  {
+    "dependency_id": "DEP_012",
+    "source_asset": "FUEL_DEPOT_01",
+    "target_asset": "POWER_A",
+    "dependency_type": "fuel",
+    "required_capacity": 500,
+    "capacity_unit": "liters/h",
+    "dependency_strength": 0.9,
+    "critical": false,
+    "failure_threshold": 0.3
+  }
+]
