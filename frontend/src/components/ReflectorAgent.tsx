@@ -151,8 +151,15 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
 
       {status === 'IDLE' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', textAlign: 'center', border: '1px dashed var(--neon-purple)', borderRadius: '8px', background: 'rgba(188, 19, 254, 0.05)' }}>
-          <div style={{ fontSize: '4rem', marginBottom: '20px', color: 'var(--neon-purple)', filter: 'drop-shadow(0 0 10px var(--neon-purple))' }}>
-            {hasIncident ? '🚨' : '🛡️'}
+          <div style={{ marginBottom: '20px', color: 'var(--neon-purple)', filter: 'drop-shadow(0 0 15px var(--neon-purple))', display: 'flex', justifyContent: 'center' }}>
+            {hasIncident ? (
+              <span style={{ fontSize: '4rem' }}>🚨</span>
+            ) : (
+              <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                <circle cx="12" cy="12" r="4" />
+              </svg>
+            )}
           </div>
           <h3 style={{ color: 'var(--neon-cyan)', fontSize: '1.5rem', marginBottom: '10px' }}>
             {hasIncident ? 'Incident Detected. Awaiting Reflection.' : 'System Nominal. Reflector Agent Standby.'}
@@ -271,8 +278,9 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
               {dynamicLessons.length > 0 ? (
                 <ol style={{ paddingLeft: '20px', margin: 0, color: 'var(--neon-cyan)' }}>
                   {dynamicLessons.map((lesson, i) => (
-                    <li key={i} style={{ marginBottom: '10px' }}>
-                      <strong style={{ color: 'var(--neon-pink)' }}>{lesson.label}:</strong> <span style={{ color: 'var(--text-primary)' }}>{lesson.text}</span>
+                    <li key={i} style={{ marginBottom: '12px', lineHeight: '1.5' }}>
+                      <strong style={{ color: 'var(--neon-pink)', display: 'block', marginBottom: '4px' }}>{lesson.label}</strong>
+                      <span style={{ color: 'var(--text-primary)', wordBreak: 'break-word' }}>{lesson.text}</span>
                     </li>
                   ))}
                 </ol>
