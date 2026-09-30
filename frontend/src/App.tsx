@@ -59,6 +59,7 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isChatFloating, setIsChatFloating] = useState(false);
   const [plannerRecommendation, setPlannerRecommendation] = useState<string | null>(null);
+  const [showcaseMode, setShowcaseMode] = useState(false);
 
   // Fast, deterministic planner agent. It routes every request through the
   // free-model router and grounds known infrastructure names locally first.
@@ -223,6 +224,38 @@ export default function App() {
       plan: winner,
       explanation: `${winner.label} selected because it ${reasons.join(', ')}.`
     };
+  };
+
+  const resilienceScore = Math.max(0, Math.round(
+    (nodes.filter(n => n.health === 'HEALTHY').length / Math.max(1, nodes.length)) * 70 +
+    (nodes.filter(n => n.backupAvailable).length / Math.max(1, nodes.length)) * 30
+  ));
+
+  const runJudgeShowcase = async () => {
+    setShowcaseMode(true);
+    setActiveTab('GRAPH');
+    addTrace('SYSTEM', 'Judge Showcase', 'Launching cross-domain flood-to-power-to-hospital resilience scenario.', 'WARNING');
+    await handleInjectFailure('PWR_SUB_A', 'SHOWCASE SCENARIO: monsoon flooding disrupts Substation Alpha; observe cross-domain hospital impact.');
+  };
+
+  const exportDecisionBrief = () => {
+    const brief = {
+      generatedAt: new Date().toISOString(),
+      resilienceScore,
+      network: { totalNodes: nodes.length, healthy: nodes.filter(n => n.health === 'HEALTHY').length, failed: nodes.filter(n => n.health === 'FAILED').length },
+      cascade: cascadeResult,
+      selectedPlan: plans.find(p => p.id === selectedPlanId)?.name || null,
+      plannerRecommendation,
+      pendingConfirmations: pendingConfirmations.length
+    };
+    const blob = new Blob([JSON.stringify(brief, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'resilienceos-decision-brief.json';
+    link.click();
+    URL.revokeObjectURL(url);
+    addTrace('SYSTEM', 'Decision Brief', 'Exported an evidence-backed resilience summary for review.', 'SUCCESS');
   };
 
   const handleRunDecisionAnalyst = async () => {
@@ -632,6 +665,28 @@ export default function App() {
 
         {activeTab === 'DASHBOARD' && (
           <div className="dashboard-grid">
+            <div className="dashboard-card" style={{ gridColumn: '1 / -1', border: '1px solid rgba(0,243,255,0.45)', background: 'linear-gradient(120deg, rgba(0,243,255,0.08), rgba(131,56,236,0.08))' }}>
+              <div className="dashboard-card-header">
+                <span>Innovation Showcase · Cross-Domain Resilience Twin</span>
+                <span style={{ color: showcaseMode ? 'var(--neon-orange)' : 'var(--neon-green)' }}>{showcaseMode ? 'LIVE SCENARIO' : 'READY'}</span>
+              </div>
+              <div className="dashboard-card-body">
+                <div style={{ display: 'flex', gap: 'var(--space-lg)', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div className="mini-stat" style={{ minWidth: '120px', borderColor: resilienceScore >= 75 ? 'var(--neon-green)' : 'var(--neon-orange)' }}>
+                    <div className="mini-stat-value" style={{ color: resilienceScore >= 75 ? 'var(--neon-green)' : 'var(--neon-orange)' }}>{resilienceScore}</div>
+                    <div className="mini-stat-label">Resilience Score</div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: '240px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    One operating picture connecting utilities, healthcare, transport, emergency response, prediction, planning, challenge testing, and human evidence verification.
+                  </div>
+                  <button className="inject-btn" onClick={runJudgeShowcase} style={{ background: 'rgba(255,107,53,0.2)', borderColor: 'var(--neon-orange)' }}>▶ Run Judge Demo</button>
+                  <button className="inject-btn" onClick={exportDecisionBrief} style={{ background: 'rgba(0,243,255,0.12)' }}>⇩ Export Brief</button>
+                </div>
+                <div style={{ marginTop: 'var(--space-md)', display: 'flex', gap: '8px', flexWrap: 'wrap', fontSize: '0.75rem' }}>
+                  {['Predict', 'Cascade', 'Plan', 'Challenge', 'Verify', 'Recover'].map((stage, i) => <span key={stage} style={{ padding: '5px 9px', borderRadius: '999px', border: '1px solid var(--border)', color: i < 3 && showcaseMode ? 'var(--neon-cyan)' : 'var(--text-muted)' }}>{i + 1}. {stage}</span>)}
+                </div>
+              </div>
+            </div>
             <div className="dashboard-card" style={{ gridColumn: '1 / -1' }}>
               <div className="dashboard-card-header">Predictive Analyst: Early-Warning Engine</div>
               <div className="dashboard-card-body">
@@ -1008,7 +1063,20 @@ export default function App() {
         </div>
       </footer>
 
-      <GisReportModal isOpen={isGisModalOpen} onClose={() => setIsGisModalOpen(false)} />
+      <GisReportModal
+        isOpen={isGisModalOpen}
+        onClose={() => setIsGisModalOpen(false)}
+        liveSummary={{
+          resilienceScore,
+          healthy: nodes.filter(n => n.health === 'HEALTHY').length,
+          failed: nodes.filter(n => n.health === 'FAILED').length,
+          totalNodes: nodes.length,
+          selectedPlan: plans.find(p => p.id === selectedPlanId)?.name || null,
+          plannerRecommendation,
+          pendingConfirmations: pendingConfirmations.length,
+          cascadeImpact: cascadeResult?.populationAffected || 0
+        }}
+      />
     </div>
   );
 }

@@ -4,9 +4,19 @@ import jsPDF from 'jspdf';
 interface GisReportModalProps {
   isOpen: boolean;
   onClose: () => void;
+  liveSummary?: {
+    resilienceScore: number;
+    healthy: number;
+    failed: number;
+    totalNodes: number;
+    selectedPlan: string | null;
+    plannerRecommendation: string | null;
+    pendingConfirmations: number;
+    cascadeImpact: number;
+  };
 }
 
-export const GisReportModal: React.FC<GisReportModalProps> = ({ isOpen, onClose }) => {
+export const GisReportModal: React.FC<GisReportModalProps> = ({ isOpen, onClose, liveSummary }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -148,6 +158,18 @@ export const GisReportModal: React.FC<GisReportModalProps> = ({ isOpen, onClose 
       drawBullet('Medium Priority [SOP]', 'Refine manual confirmation policy: set auto-approval timeout to 60s for rapid floods.');
       drawBullet('Low Priority [Fleet]', 'Integrate predictive alarms with municipal dispatch to pre-position vacuum trucks.');
       drawBullet('Software / QA [Test]', 'Register incident telemetry dataset into regression suite as REG-2026-FL01.');
+
+      // --- 6. Live ResilienceOS Decision Layer ---
+      if (liveSummary) {
+        drawSectionHeader('6. LIVE DECISION LAYER SNAPSHOT');
+        drawBullet('Resilience Score', `${liveSummary.resilienceScore}/100 based on current node health and backup coverage.`);
+        drawBullet('Network State', `${liveSummary.healthy} healthy, ${liveSummary.failed} failed, ${liveSummary.totalNodes} total infrastructure nodes.`);
+        drawBullet('Live Cascade Impact', `${liveSummary.cascadeImpact.toLocaleString()} people affected in the current simulation.`);
+        drawBullet('Planner-Selected Recovery Plan', liveSummary.selectedPlan || 'No recovery plan selected yet.');
+        drawBullet('Planner Rationale', liveSummary.plannerRecommendation || 'Decision planner has not produced a recommendation yet.');
+        drawBullet('Technician Evidence Gate', `${liveSummary.pendingConfirmations} confirmation(s) awaiting paired text-and-image evidence review.`);
+        drawBullet('Cross-Domain Workflow', 'Predict → Cascade → Plan → Challenge → Verify → Recover.');
+      }
 
       // --- Footer on all pages ---
       const pageCount = (doc.internal as any).getNumberOfPages();
