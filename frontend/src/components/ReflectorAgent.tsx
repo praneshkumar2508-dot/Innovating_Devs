@@ -116,7 +116,7 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
   const dynamicTests = getDynamicTests();
 
   return (
-    <div className="chart-card full-width" style={{ padding: '24px', border: '1px solid var(--border-color)', height: '100%', overflowY: 'auto', maxHeight: 'calc(100vh - 100px)' }}>
+    <div className="chart-card full-width" style={{ padding: '24px', border: '1px solid var(--neon-purple)', boxShadow: '0 0 15px rgba(188, 19, 254, 0.1)', height: '100%', overflowY: 'auto', maxHeight: 'calc(100vh - 100px)' }}>
       <div className="chart-header" style={{ marginBottom: '20px' }}>
         <h2 style={{ fontSize: '1.5rem', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
           🧠 Reflector Agent
@@ -132,18 +132,50 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
           disabled={status === 'RUNNING' || !hasIncident}
           className="sim-btn primary"
           style={{ 
-            background: status === 'SUCCESS' ? 'var(--neon-green)' : !hasIncident ? 'var(--bg-secondary)' : 'var(--accent-purple)', 
+            background: status === 'SUCCESS' ? 'var(--neon-green)' : !hasIncident ? 'rgba(255,255,255,0.05)' : 'var(--neon-purple)', 
             color: status === 'SUCCESS' ? '#000' : !hasIncident ? 'var(--text-secondary)' : '#000',
-            boxShadow: status === 'SUCCESS' ? '0 0 15px rgba(57,255,20,0.4)' : !hasIncident ? 'none' : '0 0 15px rgba(123,97,255,0.4)',
-            cursor: !hasIncident ? 'not-allowed' : 'pointer'
+            boxShadow: status === 'SUCCESS' ? '0 0 20px rgba(57,255,20,0.6)' : !hasIncident ? 'none' : '0 0 20px rgba(188,19,254,0.6)',
+            cursor: !hasIncident ? 'not-allowed' : 'pointer',
+            border: !hasIncident ? '1px solid var(--border-color)' : 'none',
+            fontSize: '1.1rem',
+            padding: '12px 24px',
+            transition: 'all 0.3s ease'
           }}
         >
-          {status === 'IDLE' && (hasIncident ? 'REFLECT INCIDENT' : 'NO INCIDENT TO REFLECT')}
+          {status === 'IDLE' && (hasIncident ? '⚡ REFLECT ON INCIDENT' : '⏸ NO INCIDENT DETECTED')}
           {status === 'RUNNING' && '⚙️ ANALYZING INCIDENT...'}
           {status === 'SUCCESS' && '✓ REFLECTION COMPLETE'}
-          {status === 'ERROR' && '⚠ NO INCIDENT DATA AVAILABLE'}
+          {status === 'ERROR' && '⚠ ERROR: NO INCIDENT DATA'}
         </button>
       </div>
+
+      {status === 'IDLE' && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', textAlign: 'center', border: '1px dashed var(--neon-purple)', borderRadius: '8px', background: 'rgba(188, 19, 254, 0.05)' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '20px', color: 'var(--neon-purple)', filter: 'drop-shadow(0 0 10px var(--neon-purple))' }}>
+            {hasIncident ? '🚨' : '🛡️'}
+          </div>
+          <h3 style={{ color: 'var(--neon-cyan)', fontSize: '1.5rem', marginBottom: '10px' }}>
+            {hasIncident ? 'Incident Detected. Awaiting Reflection.' : 'System Nominal. Reflector Agent Standby.'}
+          </h3>
+          <p style={{ color: 'var(--text-secondary)', maxWidth: '600px', lineHeight: '1.6' }}>
+            {hasIncident 
+              ? `The Reflector Agent will analyze the current "${incidentType}" in the ${incidentSector} sector. It will evaluate the root cause, review the response plan, and synthesize regression tests to prevent future occurrences.`
+              : 'The Reflector Agent acts as the cognitive memory of ResilienceOS. Once an incident occurs, it dynamically analyzes failure patterns, evaluates recovery efficiency, and generates permanent regression tests to ensure the system learns from every anomaly.'}
+          </p>
+        </div>
+      )}
+
+      {status === 'RUNNING' && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', textAlign: 'center', border: '1px solid var(--neon-cyan)', borderRadius: '8px', background: 'rgba(0, 255, 255, 0.05)', boxShadow: '0 0 15px rgba(0, 255, 255, 0.2)' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '20px', animation: 'spin 2s linear infinite' }}>⚙️</div>
+          <h3 style={{ color: 'var(--neon-cyan)', fontSize: '1.5rem', marginBottom: '10px', textShadow: '0 0 5px var(--neon-cyan)' }}>
+            Processing Cyber-Physical Telemetry...
+          </h3>
+          <div style={{ color: 'var(--neon-pink)', fontFamily: 'var(--font-mono)' }}>
+            Extracting event sequences | Generating regression tests | Synthesizing lessons learned
+          </div>
+        </div>
+      )}
 
       {status === 'SUCCESS' && (
         <div style={{ display: 'grid', gap: '20px', gridTemplateColumns: '1fr 1fr' }}>
