@@ -1,0 +1,2 @@
+[console_scripts]
+graphengine = graphengine.cli:main
