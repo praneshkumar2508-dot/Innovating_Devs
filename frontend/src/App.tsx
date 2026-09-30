@@ -281,7 +281,7 @@ export default function App() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}'
+          'Authorization': `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}`
         },
         body: JSON.stringify({
           model: 'google/gemini-2.5-flash',
@@ -320,23 +320,7 @@ export default function App() {
     } catch (err) {
       setChatMessages(prev => {
         const cleaned = prev.filter(m => !m.content.startsWith('Fallback:'));
-        
-        // --- Simulated AI Engine Fallback ---
-        // If Ollama is not installed, we provide a dynamic simulated response so the app remains perfectly functional
-        const inputLower = chatInput.toLowerCase();
-        let simResponse = "I'm currently running in Simulated Mode because the local Ollama engine isn't installed. ";
-        
-        if (inputLower.includes('flood') || inputLower.includes('water')) {
-          simResponse += "However, based on the network graph, flooding at Substation Alpha severely impacts downstream residential zones. I recommend routing backup power from the East Grid.";
-        } else if (inputLower.includes('status') || inputLower.includes('health')) {
-          simResponse += "The current infrastructure is operating nominally, but we have 2 critical nodes that lack sufficient runway buffers. Please check the 'Recovery Plans' tab.";
-        } else if (inputLower.includes('plan') || inputLower.includes('recover')) {
-          simResponse += "Our Monte Carlo simulations indicate Plan B yields the highest recovery probability (85%) with the lowest risk of cascading blackouts.";
-        } else {
-          simResponse += "I've analyzed the infrastructure graph. To perform a deep neural-net analysis on that specific scenario, please install Ollama. In the meantime, I can answer basic status queries!";
-        }
-
-        return [...cleaned, { role: 'assistant', content: simResponse }];
+        return [...cleaned, { role: 'assistant', content: `Error communicating with OpenRouter API: ${(err as Error).message}` }];
       });
     } finally {
       setIsChatLoading(false);
