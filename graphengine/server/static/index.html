@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GraphEngine Studio | Interactive NetworkX DAG Computation Engine</title>
+  <meta name="description" content="High-performance Directed Acyclic Graph (DAG) workflow and computation engine powered by NetworkX. Visualize, run, and monitor real-time graph executions.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="app-root" class="app-layout">
+    <!-- Top Navigation Header -->
+    <header class="top-nav">
+      <div class="nav-brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="6" cy="6" r="3"></circle>
+            <circle cx="18" cy="6" r="3"></circle>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="18" r="3"></circle>
+            <line x1="8.5" y1="7.5" x2="15.5" y2="16.5"></line>
+            <line x1="8.5" y1="16.5" x2="15.5" y2="7.5"></line>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">GraphEngine <span class="badge-nx">NetworkX</span></h1>
+          <span class="brand-subtitle">DAG Execution & Workflow Engine</span>
+        </div>
+      </div>
+
+      <div class="nav-controls">
+        <div class="control-group">
+          <label for="graph-select" class="visually-hidden">Select Workflow Graph</label>
+          <select id="graph-select" class="select-input" aria-label="Select Workflow Graph">
+            <option value="" disabled selected>Loading graphs...</option>
+          </select>
+        </div>
+
+        <div class="btn-group">
+          <button id="btn-stream-run" class="btn btn-primary" title="Execute graph with live real-time event streaming">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>Live Run</span>
+          </button>
+
+          <button id="btn-run-graph" class="btn btn-secondary" title="Execute graph synchronously">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span>Fast Run</span>
+          </button>
+
+          <button id="btn-reset-graph" class="btn btn-ghost" title="Reset node execution states">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+              <path d="M3 3v5h5"></path>
+            </svg>
+            <span>Reset</span>
+          </button>
+        </div>
+
+        <div class="live-status-container">
+          <div id="live-status-pill" class="status-pill idle">
+            <span class="status-dot"></span>
+            <span id="live-status-text">Idle</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Studio Workspace -->
+    <main class="studio-main">
+      <!-- Left Panel: Pipeline Info, Generations & Inputs -->
+      <aside class="sidebar-left" id="panel-pipeline-info">
+        <div class="panel-section">
+          <div class="section-header">
+            <h2 class="section-title">Workflow Overview</h2>
+            <span id="graph-badge-dag" class="badge-pill dag">DAG Valid</span>
+          </div>
+          <p id="graph-description" class="graph-description-text">Select a workflow graph to inspect its computational architecture.</p>
+          
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <span class="metric-val" id="metric-node-count">-</span>
+              <span class="metric-lbl">Nodes</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-val" id="metric-edge-count">-</span>
+              <span class="metric-lbl">Edges</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-val" id="metric-gen-count">-</span>
+              <span class="metric-lbl">Layers</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-val" id="metric-last-duration">-</span>
+              <span class="metric-lbl">Latency</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Topological Generations Accordion -->
+        <div class="panel-section">
+          <div class="section-header">
+            <h2 class="section-title">Parallel Execution Layers</h2>
+            <span class="hint-tag">NetworkX topological_generations</span>
+          </div>
+          <div id="generations-container" class="generations-list">
+            <!-- Rendered by app.js -->
+          </div>
+        </div>
+
+        <!-- Input Parameters Editor -->
+        <div class="panel-section flex-grow">
+          <div class="section-header">
+            <h2 class="section-title">Initial State (JSON)</h2>
+            <button id="btn-format-json" class="btn-xs" title="Format JSON payload">Format</button>
+          </div>
+          <div class="editor-wrapper">
+            <textarea id="input-state-editor" class="code-editor" spellcheck="false" placeholder="{}"></textarea>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center: Interactive Graph Canvas -->
+      <section class="canvas-viewport" id="canvas-container">
+        <!-- Floating Canvas Tools -->
+        <div class="canvas-toolbar">
+          <div class="toolbar-group">
+            <button id="btn-zoom-in" class="tool-btn" title="Zoom In">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <line x1="11" y1="8" x2="11" y2="14"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+              </svg>
+            </button>
+            <button id="btn-zoom-out" class="tool-btn" title="Zoom Out">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <line x1="8" y1="11" x2="14" y2="11"></line>
+              </svg>
+            </button>
+            <button id="btn-fit-view" class="tool-btn" title="Fit to View">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+              </svg>
+            </button>
+          </div>
+
+          <div class="legend-group">
+            <span class="legend-item"><span class="legend-badge pending"></span> Pending</span>
+            <span class="legend-item"><span class="legend-badge running"></span> Running</span>
+            <span class="legend-item"><span class="legend-badge completed"></span> Done</span>
+            <span class="legend-item"><span class="legend-badge skipped"></span> Skipped</span>
+            <span class="legend-item"><span class="legend-badge failed"></span> Failed</span>
+          </div>
+        </div>
+
+        <!-- SVG / Canvas Graph Render Surface -->
+        <div id="graph-surface" class="graph-surface">
+          <svg id="graph-svg" class="graph-svg-layer" width="100%" height="100%">
+            <defs>
+              <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="rgba(148, 163, 184, 0.7)" />
+              </marker>
+              <marker id="arrowhead-active" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#6366f1" />
+              </marker>
+              <filter id="glow-running" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="8" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+            <g id="svg-edges-group"></g>
+          </svg>
+          <div id="nodes-overlay" class="nodes-overlay">
+            <!-- Node cards injected dynamically -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Panel: Node Inspector Drawer -->
+      <aside class="sidebar-right" id="panel-node-inspector">
+        <div class="panel-section">
+          <div class="section-header">
+            <h2 class="section-title">Node Inspector</h2>
+            <span id="inspector-node-status" class="status-tag pending">Ready</span>
+          </div>
+          
+          <div id="inspector-empty" class="empty-state">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="12" y1="16" x2="12" y2="12"></line>
+              <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <p>Click on any node in the canvas to inspect its parameters, dependencies, and outputs.</p>
+          </div>
+
+          <div id="inspector-content" class="inspector-details hidden">
+            <div class="detail-header">
+              <h3 id="inspector-node-name" class="detail-name">Node Name</h3>
+              <span id="inspector-node-id" class="detail-id">node_id</span>
+            </div>
+            
+            <p id="inspector-node-desc" class="detail-desc"></p>
+
+            <div class="property-table">
+              <div class="prop-row">
+                <span class="prop-label">Execution Time</span>
+                <span id="inspector-node-time" class="prop-val">-</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Async Mode</span>
+                <span id="inspector-node-async" class="prop-val">-</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Cacheable</span>
+                <span id="inspector-node-cacheable" class="prop-val">-</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Output Key</span>
+                <span id="inspector-node-outkey" class="prop-val">-</span>
+              </div>
+              <div class="prop-row">
+                <span class="prop-label">Inputs</span>
+                <span id="inspector-node-inputs" class="prop-val">-</span>
+              </div>
+            </div>
+
+            <!-- Output Data Viewer -->
+            <div class="output-viewer-box">
+              <div class="output-viewer-header">
+                <span class="viewer-title">Node Output Payload</span>
+                <button id="btn-copy-output" class="btn-xs">Copy</button>
+              </div>
+              <pre id="inspector-output-json" class="json-viewer">No execution output yet.</pre>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Bottom Event Console & Live Telemetry -->
+    <footer class="bottom-dock">
+      <div class="dock-header">
+        <div class="dock-title-group">
+          <span class="dock-icon">⚡</span>
+          <span class="dock-title">Execution Events & Telemetry</span>
+          <span id="event-count-badge" class="badge-count">0 events</span>
+        </div>
+        <div class="dock-actions">
+          <button id="btn-clear-logs" class="btn-xs" title="Clear event logs">Clear</button>
+        </div>
+      </div>
+      <div id="event-console" class="event-console-stream" role="log" aria-live="polite">
+        <div class="log-entry info">
+          <span class="log-time">[System]</span>
+          <span class="log-msg">GraphEngine initialized. Ready to execute DAG workflows.</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
