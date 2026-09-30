@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9bd7f5"/><stop offset="1" stop-color="#eaf7ff"/></linearGradient>
+    <linearGradient id="yard" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#56616b"/><stop offset="1" stop-color="#222a31"/></linearGradient>
+  </defs>
+  <rect width="1200" height="700" fill="url(#sky)"/>
+  <rect y="430" width="1200" height="270" fill="url(#yard)"/>
+  <rect x="125" y="180" width="950" height="28" fill="#e8edf0" stroke="#263238" stroke-width="5"/>
+  <rect x="170" y="208" width="860" height="225" fill="#d7dee2" stroke="#263238" stroke-width="7"/>
+  <path d="M170 270h860M170 350h860M300 208v225M600 208v225M870 208v225" stroke="#87939b" stroke-width="6"/>
+  <g fill="#1d252b" stroke="#080b0d" stroke-width="5"><rect x="250" y="300" width="95" height="130"/><rect x="480" y="280" width="115" height="150"/><rect x="735" y="300" width="95" height="130"/></g>
+  <g stroke="#ffd166" stroke-width="9" fill="none"><path d="M295 300v-90M537 280v-70M782 300v-90"/><path d="M295 210l-40-55M295 210l40-55M537 210l-55-65M537 210l55-65M782 210l-40-55M782 210l40-55"/></g>
+  <rect x="380" y="470" width="440" height="92" rx="12" fill="#f4f7f8" stroke="#162027" stroke-width="6"/>
+  <text x="600" y="515" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#162027">SUBSTATION ALPHA</text>
+  <text x="600" y="548" text-anchor="middle" font-family="Arial, sans-serif" font-size="22" fill="#263238">PWR_SUB_A • DEMO EVIDENCE IMAGE</text>
+  <rect x="28" y="28" width="380" height="58" rx="10" fill="#b91c1c" opacity=".92"/>
+  <text x="218" y="66" text-anchor="middle" font-family="Arial, sans-serif" font-size="25" font-weight="700" fill="white">SYNTHETIC DEMO — NOT A REAL PHOTO</text>
+</svg>
