@@ -274,7 +274,7 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
 
           <div className="dashboard-card" style={{ gridColumn: '1 / -1', border: '1px solid var(--neon-green)', boxShadow: '0 0 10px rgba(57, 255, 20, 0.2)' }}>
             <div className="dashboard-card-header" style={{ color: 'var(--neon-green)', borderBottom: '1px solid var(--neon-green)' }}>Generated Lessons</div>
-            <div className="dashboard-card-body">
+            <div className="dashboard-card-body" style={{ maxHeight: '300px', overflowY: 'auto', paddingRight: '10px' }}>
               {dynamicLessons.length > 0 ? (
                 <ol style={{ paddingLeft: '20px', margin: 0, color: 'var(--neon-cyan)' }}>
                   {dynamicLessons.map((lesson, i) => (
@@ -292,7 +292,7 @@ export const ReflectorAgent: React.FC<ReflectorAgentProps> = ({ nodes, cascadeRe
 
           <div className="dashboard-card" style={{ gridColumn: '1 / -1', border: '1px solid var(--neon-green)', boxShadow: '0 0 10px rgba(57, 255, 20, 0.2)' }}>
             <div className="dashboard-card-header" style={{ color: 'var(--neon-green)', borderBottom: '1px solid var(--neon-green)' }}>Regression Tests Generated</div>
-            <div className="dashboard-card-body">
+            <div className="dashboard-card-body" style={{ maxHeight: '250px', overflowY: 'auto', paddingRight: '10px' }}>
               {dynamicTests.length > 0 ? (
                 <ul style={{ paddingLeft: '20px', margin: 0, color: 'var(--text-secondary)' }}>
                   {dynamicTests.map((test, i) => (
