@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ResilienceOS — Cascade Analyst</title>
+    <meta name="description" content="Infrastructure cascade failure analysis and visualization dashboard">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        /* ── Design System ──────────────────────────────────────── */
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a2035;
+            --bg-card-hover: #1e2742;
+            --bg-glass: rgba(26, 32, 53, 0.8);
+            --border: rgba(255,255,255,0.06);
+            --border-active: rgba(99, 179, 237, 0.3);
+            --text-primary: #e2e8f0;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-blue: #3b82f6;
+            --accent-cyan: #22d3ee;
+            --accent-purple: #a78bfa;
+            --accent-green: #34d399;
+            --accent-amber: #fbbf24;
+            --accent-red: #f87171;
+            --accent-rose: #fb7185;
+            --gradient-blue: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+            --gradient-cyan: linear-gradient(135deg, #06b6d4 0%, #3b82f6 100%);
+            --gradient-green: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            --gradient-amber: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+            --gradient-red: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+            --shadow-lg: 0 25px 50px rgba(0,0,0,0.4);
+            --shadow-glow-blue: 0 0 30px rgba(59, 130, 246, 0.15);
+            --shadow-glow-red: 0 0 30px rgba(248, 113, 113, 0.15);
+            --radius: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ── Ambient Background ─────────────────────────────────── */
+        .ambient-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .ambient-bg .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.07;
+            animation: float 20s ease-in-out infinite;
+        }
+        .ambient-bg .orb:nth-child(1) {
+            width: 600px; height: 600px;
+            background: #3b82f6;
+            top: -200px; left: -100px;
+            animation-delay: 0s;
+        }
+        .ambient-bg .orb:nth-child(2) {
+            width: 500px; height: 500px;
+            background: #8b5cf6;
+            bottom: -150px; right: -100px;
+            animation-delay: -7s;
+        }
+        .ambient-bg .orb:nth-child(3) {
+            width: 400px; height: 400px;
+            background: #06b6d4;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            animation-delay: -14s;
+        }
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(40px, -30px) scale(1.05); }
+            66% { transform: translate(-20px, 20px) scale(0.95); }
+        }
+
+        /* ── Layout ─────────────────────────────────────────────── */
+        .app-container {
+            position: relative;
+            z-index: 1;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        /* ── Header ─────────────────────────────────────────────── */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 28px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            margin-bottom: 24px;
+        }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .logo {
+            width: 44px; height: 44px;
+            background: var(--gradient-cyan);
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; font-weight: 800; color: white;
+            box-shadow: 0 4px 15px rgba(6, 182, 212, 0.3);
+        }
+        .header-title { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+        .header-subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+        .status-badge {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 6px 14px;
+            background: rgba(52, 211, 153, 0.12);
+            border: 1px solid rgba(52, 211, 153, 0.25);
+            border-radius: 100px;
+            font-size: 12px; font-weight: 600; color: var(--accent-green);
+        }
+        .status-dot {
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse 2s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        /* ── Controls ───────────────────────────────────────────── */
+        .controls {
+            display: flex; gap: 12px; align-items: stretch;
+            padding: 20px 28px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex; flex-direction: column; gap: 6px;
+        }
+        .control-label {
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.8px; color: var(--text-muted);
+        }
+        .select-wrap {
+            position: relative;
+        }
+        select, input[type="number"] {
+            appearance: none;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            color: var(--text-primary);
+            font-family: var(--font);
+            font-size: 13px;
+            padding: 10px 14px;
+            min-width: 180px;
+            transition: var(--transition);
+            cursor: pointer;
+        }
+        select:hover, input[type="number"]:hover {
+            border-color: var(--border-active);
+        }
+        select:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 22px;
+            border: none; border-radius: var(--radius);
+            font-family: var(--font); font-size: 13px; font-weight: 600;
+            cursor: pointer; transition: var(--transition);
+            white-space: nowrap;
+        }
+        .btn-primary {
+            background: var(--gradient-blue);
+            color: white;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+        }
+        .btn-primary:active { transform: translateY(0); }
+        .btn-danger {
+            background: var(--gradient-red);
+            color: white;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.3);
+        }
+        .btn-danger:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+        }
+        .btn-outline:hover {
+            border-color: var(--accent-blue);
+            color: var(--text-primary);
+            background: rgba(59, 130, 246, 0.08);
+        }
+        .btn:disabled {
+            opacity: 0.5; cursor: not-allowed; transform: none !important;
+        }
+        .btn .spinner {
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Summary Cards ──────────────────────────────────────── */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .summary-card {
+            padding: 20px;
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            transition: var(--transition);
+        }
+        .summary-card:hover {
+            border-color: var(--border-active);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-glow-blue);
+        }
+        .summary-card .label {
+            font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.8px; color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .summary-card .value {
+            font-size: 32px; font-weight: 800; letter-spacing: -1px;
+            line-height: 1;
+        }
+        .summary-card .sub {
+            font-size: 12px; color: var(--text-secondary); margin-top: 6px;
+        }
+        .value-red { color: var(--accent-red); }
+        .value-amber { color: var(--accent-amber); }
+        .value-green { color: var(--accent-green); }
+        .value-blue { color: var(--accent-blue); }
+        .value-cyan { color: var(--accent-cyan); }
+        .value-purple { color: var(--accent-purple); }
+
+        /* ── Main Grid ──────────────────────────────────────────── */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 24px;
+        }
+        @media (max-width: 1100px) {
+            .main-grid { grid-template-columns: 1fr; }
+        }
+
+        /* ── Panels ─────────────────────────────────────────────── */
+        .panel {
+            background: var(--bg-glass);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+        }
+        .panel-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .panel-title {
+            font-size: 15px; font-weight: 700;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .panel-body { padding: 0; }
+        .panel-body.padded { padding: 20px 24px; }
+
+        /* ── Cascade Visualization (Canvas) ─────────────────────── */
+        #cascade-canvas {
+            width: 100%;
+            height: 500px;
+            display: block;
+            cursor: grab;
+        }
+        #cascade-canvas:active { cursor: grabbing; }
+
+        /* ── Asset List ─────────────────────────────────────────── */
+        .asset-list { max-height: 520px; overflow-y: auto; }
+        .asset-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 14px 24px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: var(--transition);
+        }
+        .asset-item:hover { background: var(--bg-card-hover); }
+        .asset-item.active { background: rgba(59, 130, 246, 0.08); border-left: 3px solid var(--accent-blue); }
+        .asset-item:last-child { border-bottom: none; }
+        .state-indicator {
+            width: 10px; height: 10px;
+            border-radius: 50%; flex-shrink: 0;
+        }
+        .state-OPERATIONAL { background: var(--accent-green); box-shadow: 0 0 8px rgba(52, 211, 153, 0.5); }
+        .state-PROTECTED { background: var(--accent-blue); box-shadow: 0 0 8px rgba(59, 130, 246, 0.5); }
+        .state-AT_RISK { background: var(--accent-amber); box-shadow: 0 0 8px rgba(251, 191, 36, 0.5); }
+        .state-DEGRADED { background: #fb923c; box-shadow: 0 0 8px rgba(251, 146, 60, 0.5); }
+        .state-FAILED { background: var(--accent-red); box-shadow: 0 0 8px rgba(248, 113, 113, 0.5); }
+        .state-UNKNOWN { background: var(--text-muted); }
+        .asset-info { flex: 1; min-width: 0; }
+        .asset-name {
+            font-size: 13px; font-weight: 600;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .asset-meta {
+            font-size: 11px; color: var(--text-muted); margin-top: 2px;
+        }
+        .impact-badge {
+            padding: 3px 10px; border-radius: 100px;
+            font-size: 11px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .severity-CRITICAL { background: rgba(239,68,68,0.15); color: var(--accent-red); }
+        .severity-HIGH { background: rgba(251,146,60,0.15); color: #fb923c; }
+        .severity-MODERATE { background: rgba(251,191,36,0.15); color: var(--accent-amber); }
+        .severity-LOW { background: rgba(52,211,153,0.15); color: var(--accent-green); }
+
+        /* ── Detail Panel ───────────────────────────────────────── */
+        .detail-panel {
+            position: fixed;
+            top: 0; right: -500px;
+            width: 460px; height: 100vh;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            z-index: 100;
+            transition: right 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+        }
+        .detail-panel.open { right: 0; box-shadow: -20px 0 60px rgba(0,0,0,0.5); }
+        .detail-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0;
+            background: var(--bg-secondary);
+            z-index: 1;
+        }
+        .detail-close {
+            width: 32px; height: 32px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 18px;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: var(--transition);
+        }
+        .detail-close:hover { background: var(--bg-card); color: var(--text-primary); }
+        .detail-body { padding: 24px; }
+        .detail-section { margin-bottom: 24px; }
+        .detail-section-title {
+            font-size: 11px; font-weight: 700; text-transform: uppercase;
+            letter-spacing: 1px; color: var(--text-muted);
+            margin-bottom: 12px;
+        }
+        .detail-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+        }
+        .detail-key { font-size: 13px; color: var(--text-secondary); }
+        .detail-value { font-size: 13px; font-weight: 600; }
+        .detail-bar {
+            height: 6px; border-radius: 3px;
+            background: rgba(255,255,255,0.06);
+            margin-top: 8px; overflow: hidden;
+        }
+        .detail-bar-fill {
+            height: 100%; border-radius: 3px;
+            transition: width 0.5s ease;
+        }
+        .path-chain {
+            display: flex; align-items: center; gap: 6px;
+            flex-wrap: wrap; margin-top: 8px;
+            padding: 10px; background: var(--bg-card);
+            border-radius: var(--radius); font-size: 12px;
+        }
+        .path-node {
+            padding: 3px 8px; border-radius: 6px;
+            background: rgba(59,130,246,0.15); color: var(--accent-blue);
+            font-weight: 600;
+        }
+        .path-arrow { color: var(--text-muted); }
+
+        /* ── Timeline ───────────────────────────────────────────── */
+        .timeline-list { max-height: 400px; overflow-y: auto; padding: 16px 24px; }
+        .timeline-item {
+            display: flex; gap: 14px; position: relative;
+            padding-bottom: 20px;
+        }
+        .timeline-item:last-child { padding-bottom: 0; }
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: 15px; top: 26px;
+            width: 1px; height: calc(100% - 26px);
+            background: var(--border);
+        }
+        .timeline-item:last-child::before { display: none; }
+        .timeline-dot {
+            width: 30px; height: 30px;
+            border-radius: 50%;
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; flex-shrink: 0;
+            z-index: 1;
+        }
+        .timeline-dot.t-fail { border-color: var(--accent-red); color: var(--accent-red); }
+        .timeline-dot.t-warn { border-color: var(--accent-amber); color: var(--accent-amber); }
+        .timeline-dot.t-backup { border-color: var(--accent-blue); color: var(--accent-blue); }
+        .timeline-content { flex: 1; }
+        .timeline-time {
+            font-size: 11px; font-weight: 700; color: var(--text-muted);
+            margin-bottom: 2px;
+        }
+        .timeline-event { font-size: 13px; font-weight: 600; }
+        .timeline-detail { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+
+        /* ── Overlay ────────────────────────────────────────────── */
+        .overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 99;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        .overlay.active { opacity: 1; pointer-events: all; }
+
+        /* ── Empty State ────────────────────────────────────────── */
+        .empty-state {
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            padding: 60px 24px; text-align: center;
+        }
+        .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+        .empty-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+        .empty-desc { font-size: 13px; color: var(--text-secondary); max-width: 360px; }
+
+        /* ── Scrollbar ──────────────────────────────────────────── */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+        /* ── Animations ─────────────────────────────────────────── */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: fadeIn 0.5s ease forwards; }
+        .delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .delay-2 { animation-delay: 0.2s; opacity: 0; }
+        .delay-3 { animation-delay: 0.3s; opacity: 0; }
+        .delay-4 { animation-delay: 0.4s; opacity: 0; }
+    </style>
+</head>
+<body>
+    <div class="ambient-bg">
+        <div class="orb"></div>
+        <div class="orb"></div>
+        <div class="orb"></div>
+    </div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header fade-in">
+            <div class="header-left">
+                <div class="logo">R</div>
+                <div>
+                    <div class="header-title">Cascade Analyst</div>
+                    <div class="header-subtitle">ResilienceOS • Infrastructure Failure Analysis</div>
+                </div>
+            </div>
+            <div id="status-container">
+                <span class="status-badge" id="system-status">
+                    <span class="status-dot"></span>
+                    <span id="status-text">Connecting…</span>
+                </span>
+            </div>
+        </header>
+
+        <!-- Controls -->
+        <div class="controls fade-in delay-1">
+            <div class="control-group">
+                <span class="control-label">Root Failure</span>
+                <select id="asset-select"><option value="">Loading assets…</option></select>
+            </div>
+            <div class="control-group">
+                <span class="control-label">Failure Mode</span>
+                <select id="mode-select">
+                    <option value="complete">Complete Failure</option>
+                    <option value="capacity_reduction">Capacity Reduction</option>
+                    <option value="degraded">Degraded</option>
+                </select>
+            </div>
+            <div class="control-group" id="capacity-group" style="display:none;">
+                <span class="control-label">Remaining %</span>
+                <input type="number" id="capacity-input" value="40" min="0" max="100" step="5">
+            </div>
+            <div class="control-group" style="align-self: flex-end;">
+                <button class="btn btn-danger" id="simulate-btn" disabled>
+                    ⚡ Simulate Cascade
+                </button>
+            </div>
+            <div class="control-group" style="align-self: flex-end;">
+                <button class="btn btn-outline" id="load-graph-btn">
+                    ↻ Reload Graph
+                </button>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-grid" id="summary-grid" style="display:none;"></div>
+
+        <!-- Main Content -->
+        <div class="main-grid" id="main-content" style="display:none;">
+            <!-- Cascade Visualization -->
+            <div>
+                <div class="panel fade-in delay-2" style="margin-bottom:24px;">
+                    <div class="panel-header">
+                        <span class="panel-title">🔗 Cascade Network</span>
+                    </div>
+                    <div class="panel-body">
+                        <canvas id="cascade-canvas"></canvas>
+                    </div>
+                </div>
+
+                <!-- Timeline -->
+                <div class="panel fade-in delay-3">
+                    <div class="panel-header">
+                        <span class="panel-title">⏱ Cascade Timeline</span>
+                    </div>
+                    <div class="panel-body">
+                        <div class="timeline-list" id="timeline-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Affected Assets -->
+            <div class="panel fade-in delay-4">
+                <div class="panel-header">
+                    <span class="panel-title">📊 Affected Assets</span>
+                    <span id="affected-count" style="font-size:12px;color:var(--text-muted);"></span>
+                </div>
+                <div class="panel-body">
+                    <div class="asset-list" id="asset-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="panel fade-in delay-2" style="margin-top:24px;">
+            <div class="empty-state">
+                <div class="empty-icon">🛡</div>
+                <div class="empty-title">Ready to Analyse</div>
+                <div class="empty-desc">
+                    Select an infrastructure asset and simulate a failure to see the cascade analysis.
+                    The graph is loaded automatically from the server.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detail Overlay -->
+    <div class="overlay" id="overlay"></div>
+    <div class="detail-panel" id="detail-panel">
+        <div class="detail-header">
+            <span class="panel-title" id="detail-title">Asset Details</span>
+            <button class="detail-close" id="detail-close">✕</button>
+        </div>
+        <div class="detail-body" id="detail-body"></div>
+    </div>
+
+    <script>
+        /* ── ResilienceOS Cascade Analyst Frontend ────────────────── */
+        const API_BASE = window.location.origin;
+        let graphData = null;
+        let cascadeResult = null;
+        let canvasNodes = [];
+        let canvasDrag = null;
+
+        // ── Init ─────────────────────────────────────────────────
+        document.addEventListener('DOMContentLoaded', () => {
+            loadGraph();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('simulate-btn').addEventListener('click', runSimulation);
+            document.getElementById('load-graph-btn').addEventListener('click', loadGraph);
+            document.getElementById('detail-close').addEventListener('click', closeDetail);
+            document.getElementById('overlay').addEventListener('click', closeDetail);
+            document.getElementById('mode-select').addEventListener('change', (e) => {
+                document.getElementById('capacity-group').style.display =
+                    e.target.value === 'complete' ? 'none' : '';
+            });
+
+            // Canvas interactions
+            const canvas = document.getElementById('cascade-canvas');
+            canvas.addEventListener('click', onCanvasClick);
+        }
+
+        // ── API Calls ────────────────────────────────────────────
+        async function loadGraph() {
+            setStatus('Loading…', false);
+            try {
+                const resp = await fetch(`${API_BASE}/api/v1/graph`);
+                if (!resp.ok) throw new Error('Graph not loaded');
+                graphData = await resp.json();
+                populateAssetSelect();
+                setStatus(`${graphData.node_count} nodes, ${graphData.edge_count} edges`, true);
+                document.getElementById('simulate-btn').disabled = false;
+            } catch (e) {
+                setStatus('No graph loaded', false);
+                document.getElementById('asset-select').innerHTML = '<option value="">No graph available</option>';
+            }
+        }
+
+        async function runSimulation() {
+            const assetId = document.getElementById('asset-select').value;
+            const mode = document.getElementById('mode-select').value;
+            const capPct = parseFloat(document.getElementById('capacity-input').value) || 40;
+
+            if (!assetId) return;
+
+            const btn = document.getElementById('simulate-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Analysing…';
+
+            const payload = {
+                root_failures: [{
+                    asset_id: assetId,
+                    mode: mode,
+                    remaining_capacity_percent: mode === 'complete' ? 0 : capPct
+                }]
+            };
+
+            try {
+                const resp = await fetch(`${API_BASE}/api/v1/cascade/simulate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (!resp.ok) {
+                    const err = await resp.json();
+                    throw new Error(err.detail?.error?.message || 'Simulation failed');
+                }
+                cascadeResult = await resp.json();
+                renderResults();
+            } catch (e) {
+                alert(`Error: ${e.message}`);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '⚡ Simulate Cascade';
+            }
+        }
+
+        // ── Rendering ────────────────────────────────────────────
+        function populateAssetSelect() {
+            const sel = document.getElementById('asset-select');
+            sel.innerHTML = '<option value="">Select asset to fail…</option>';
+            if (!graphData?.nodes) return;
+            graphData.nodes
+                .sort((a, b) => b.criticality - a.criticality)
+                .forEach(n => {
+                    const opt = document.createElement('option');
+                    opt.value = n.asset_id;
+                    opt.textContent = `${n.name} (${n.asset_type})`;
+                    sel.appendChild(opt);
+                });
+        }
+
+        function renderResults() {
+            if (!cascadeResult) return;
+
+            document.getElementById('empty-state').style.display = 'none';
+            document.getElementById('summary-grid').style.display = '';
+            document.getElementById('main-content').style.display = '';
+
+            renderSummary();
+            renderCascadeGraph();
+            renderTimeline();
+            renderAssetList();
+        }
+
+        function renderSummary() {
+            const s = cascadeResult.summary;
+            const cards = [
+                { label: 'Affected', value: s.assets_affected, cls: 'value-amber', sub: 'Total assets' },
+                { label: 'Failed', value: s.assets_failed, cls: 'value-red', sub: 'Cannot operate' },
+                { label: 'At Risk', value: s.assets_at_risk, cls: 'value-amber', sub: 'On backup' },
+                { label: 'Protected', value: s.assets_protected, cls: 'value-green', sub: 'Redundant supply' },
+                { label: 'Cascade Depth', value: s.cascade_depth, cls: 'value-purple', sub: 'Propagation levels' },
+                { label: 'Failure R₀', value: s.failure_r0.toFixed(1), cls: 'value-cyan', sub: 'Cascade reproduction' },
+                { label: 'Critical At Risk', value: s.critical_services_at_risk, cls: 'value-red', sub: 'High-criticality' },
+                { label: 'Population', value: s.population_affected != null ? s.population_affected.toLocaleString() : '—', cls: 'value-blue', sub: 'Affected people' },
+            ];
+
+            const grid = document.getElementById('summary-grid');
+            grid.innerHTML = cards.map((c, i) => `
+                <div class="summary-card fade-in" style="animation-delay:${i * 0.05}s">
+                    <div class="label">${c.label}</div>
+                    <div class="value ${c.cls}">${c.value}</div>
+                    <div class="sub">${c.sub}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderTimeline() {
+            const el = document.getElementById('timeline-list');
+            if (!cascadeResult.timeline?.length) {
+                el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:13px;">No timeline events</div>';
+                return;
+            }
+            el.innerHTML = cascadeResult.timeline.map(t => {
+                const isFail = t.event.includes('FAILED');
+                const isBackup = t.event.includes('BACKUP');
+                const isExhaust = t.event.includes('EXHAUSTED');
+                const dotClass = isFail ? 't-fail' : isExhaust ? 't-warn' : isBackup ? 't-backup' : '';
+                const icon = isFail ? '✕' : isExhaust ? '!' : isBackup ? '⚡' : '•';
+                return `
+                    <div class="timeline-item">
+                        <div class="timeline-dot ${dotClass}">${icon}</div>
+                        <div class="timeline-content">
+                            <div class="timeline-time">t = ${t.time_minutes} min</div>
+                            <div class="timeline-event">${t.event.replace(/_/g, ' ')}</div>
+                            ${t.details ? `<div class="timeline-detail">${t.details}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderAssetList() {
+            const el = document.getElementById('asset-list');
+            const count = document.getElementById('affected-count');
+            const assets = cascadeResult.affected_assets || [];
+            count.textContent = `${assets.length} assets`;
+
+            el.innerHTML = assets.map(a => `
+                <div class="asset-item" data-id="${a.asset_id}" onclick="showDetail('${a.asset_id}')">
+                    <div class="state-indicator state-${a.state}"></div>
+                    <div class="asset-info">
+                        <div class="asset-name">${a.name || a.asset_id}</div>
+                        <div class="asset-meta">${a.asset_type} • Depth ${a.cascade_depth} ${a.runway_minutes != null ? `• ${a.runway_minutes}m runway` : ''}</div>
+                    </div>
+                    <span class="impact-badge severity-${a.impact_severity}">${a.impact_score.toFixed(2)}</span>
+                </div>
+            `).join('');
+        }
+
+        // ── Canvas Graph ─────────────────────────────────────────
+        function renderCascadeGraph() {
+            const canvas = document.getElementById('cascade-canvas');
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+            const W = rect.width;
+            const H = rect.height;
+
+            if (!graphData || !cascadeResult) return;
+
+            // Build node map
+            const affected = new Map();
+            (cascadeResult.affected_assets || []).forEach(a => affected.set(a.asset_id, a));
+
+            const allNodes = graphData.nodes || [];
+            const allEdges = graphData.edges || [];
+
+            // Layout: by cascade depth
+            const depthBuckets = {};
+            allNodes.forEach(n => {
+                const a = affected.get(n.asset_id);
+                const depth = a ? a.cascade_depth : -1;
+                if (!depthBuckets[depth]) depthBuckets[depth] = [];
+                depthBuckets[depth].push(n);
+            });
+
+            const depths = Object.keys(depthBuckets).map(Number).sort((a, b) => a - b);
+            const totalCols = depths.length || 1;
+            const colWidth = W / (totalCols + 1);
+
+            canvasNodes = [];
+            depths.forEach((depth, colIdx) => {
+                const bucket = depthBuckets[depth];
+                const rowHeight = H / (bucket.length + 1);
+                bucket.forEach((n, rowIdx) => {
+                    canvasNodes.push({
+                        id: n.asset_id,
+                        name: n.name,
+                        type: n.asset_type,
+                        x: colWidth * (colIdx + 1),
+                        y: rowHeight * (rowIdx + 1),
+                        state: affected.get(n.asset_id)?.state || 'OPERATIONAL',
+                        criticality: n.criticality,
+                        depth: depth,
+                    });
+                });
+            });
+
+            const nodeMap = new Map();
+            canvasNodes.forEach(n => nodeMap.set(n.id, n));
+
+            // Draw edges
+            ctx.lineWidth = 1.5;
+            allEdges.forEach(e => {
+                const src = nodeMap.get(e.source);
+                const tgt = nodeMap.get(e.target);
+                if (!src || !tgt) return;
+
+                const srcState = affected.get(e.source)?.state || 'OPERATIONAL';
+                const isFailed = srcState === 'FAILED';
+
+                ctx.beginPath();
+                ctx.moveTo(src.x, src.y);
+                // Curved edge
+                const mx = (src.x + tgt.x) / 2;
+                const my = (src.y + tgt.y) / 2 - 20;
+                ctx.quadraticCurveTo(mx, my, tgt.x, tgt.y);
+                ctx.strokeStyle = isFailed ? 'rgba(248,113,113,0.5)' : 'rgba(255,255,255,0.1)';
+                ctx.setLineDash(isFailed ? [4, 4] : []);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // Arrow
+                const angle = Math.atan2(tgt.y - my, tgt.x - mx);
+                const arrowLen = 8;
+                ctx.beginPath();
+                ctx.moveTo(tgt.x, tgt.y);
+                ctx.lineTo(tgt.x - arrowLen * Math.cos(angle - 0.4), tgt.y - arrowLen * Math.sin(angle - 0.4));
+                ctx.lineTo(tgt.x - arrowLen * Math.cos(angle + 0.4), tgt.y - arrowLen * Math.sin(angle + 0.4));
+                ctx.closePath();
+                ctx.fillStyle = isFailed ? 'rgba(248,113,113,0.5)' : 'rgba(255,255,255,0.15)';
+                ctx.fill();
+            });
+
+            // Draw nodes
+            const stateColors = {
+                OPERATIONAL: '#34d399',
+                PROTECTED: '#3b82f6',
+                AT_RISK: '#fbbf24',
+                DEGRADED: '#fb923c',
+                FAILED: '#f87171',
+                UNKNOWN: '#64748b',
+            };
+
+            canvasNodes.forEach(n => {
+                const color = stateColors[n.state] || stateColors.UNKNOWN;
+                const r = 18 + n.criticality * 8;
+
+                // Glow
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, r + 6, 0, Math.PI * 2);
+                const glow = ctx.createRadialGradient(n.x, n.y, r, n.x, n.y, r + 12);
+                glow.addColorStop(0, color + '30');
+                glow.addColorStop(1, 'transparent');
+                ctx.fillStyle = glow;
+                ctx.fill();
+
+                // Node circle
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, r, 0, Math.PI * 2);
+                ctx.fillStyle = '#1a2035';
+                ctx.fill();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+
+                // Label
+                ctx.fillStyle = '#e2e8f0';
+                ctx.font = '600 10px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                const label = n.name.length > 12 ? n.name.slice(0, 11) + '…' : n.name;
+                ctx.fillText(label, n.x, n.y + r + 14);
+
+                // State label
+                ctx.fillStyle = color;
+                ctx.font = '700 8px Inter, sans-serif';
+                ctx.fillText(n.state, n.x, n.y + r + 25);
+            });
+        }
+
+        function onCanvasClick(e) {
+            const canvas = document.getElementById('cascade-canvas');
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            for (const n of canvasNodes) {
+                const r = 22;
+                if (Math.hypot(x - n.x, y - n.y) < r) {
+                    showDetail(n.id);
+                    return;
+                }
+            }
+        }
+
+        // ── Detail Panel ─────────────────────────────────────────
+        function showDetail(assetId) {
+            if (!cascadeResult) return;
+            const a = cascadeResult.affected_assets.find(x => x.asset_id === assetId);
+            if (!a) return;
+
+            const panel = document.getElementById('detail-panel');
+            const overlay = document.getElementById('overlay');
+            const title = document.getElementById('detail-title');
+            const body = document.getElementById('detail-body');
+
+            title.textContent = a.name || a.asset_id;
+
+            const stateColors = {
+                OPERATIONAL: 'var(--accent-green)', PROTECTED: 'var(--accent-blue)',
+                AT_RISK: 'var(--accent-amber)', DEGRADED: '#fb923c',
+                FAILED: 'var(--accent-red)', UNKNOWN: 'var(--text-muted)',
+            };
+
+            let html = `
+                <div class="detail-section">
+                    <div class="detail-section-title">Status</div>
+                    <div class="detail-row">
+                        <span class="detail-key">State</span>
+                        <span class="detail-value" style="color:${stateColors[a.state] || 'inherit'}">
+                            <span class="state-indicator state-${a.state}" style="display:inline-block;width:8px;height:8px;margin-right:6px;vertical-align:middle;"></span>
+                            ${a.state}
+                        </span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-key">Impact Score</span>
+                        <span class="detail-value">${a.impact_score.toFixed(3)} <span class="impact-badge severity-${a.impact_severity}" style="margin-left:8px;">${a.impact_severity}</span></span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-key">Criticality</span>
+                        <span class="detail-value">${a.criticality.toFixed(2)}</span>
+                    </div>
+                    <div class="detail-bar">
+                        <div class="detail-bar-fill" style="width:${a.criticality * 100}%;background:${stateColors[a.state]};"></div>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-key">Cascade Depth</span>
+                        <span class="detail-value">${a.cascade_depth}</span>
+                    </div>
+                    <div class="detail-row">
+                        <span class="detail-key">Capacity Available</span>
+                        <span class="detail-value">${a.capacity_available_percent.toFixed(0)}%</span>
+                    </div>
+                    <div class="detail-bar">
+                        <div class="detail-bar-fill" style="width:${a.capacity_available_percent}%;background:var(--accent-cyan);"></div>
+                    </div>
+                </div>
+            `;
+
+            // Runway
+            if (a.runway_minutes != null) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-section-title">Backup Runway</div>
+                        <div class="detail-row">
+                            <span class="detail-key">Duration</span>
+                            <span class="detail-value">${a.runway_minutes} minutes</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-key">Backup Active</span>
+                            <span class="detail-value">${a.backup_active ? '✓ Yes' : '✕ No'}</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Population
+            if (a.population_affected != null) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-section-title">Population Impact</div>
+                        <div class="detail-row">
+                            <span class="detail-key">Affected</span>
+                            <span class="detail-value value-red">${a.population_affected.toLocaleString()} people</span>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Dependency Satisfaction
+            if (a.dependency_satisfaction && Object.keys(a.dependency_satisfaction).length) {
+                html += `<div class="detail-section"><div class="detail-section-title">Dependency Satisfaction</div>`;
+                for (const [type, sat] of Object.entries(a.dependency_satisfaction)) {
+                    const pct = (sat * 100).toFixed(0);
+                    const barColor = sat > 0.7 ? 'var(--accent-green)' : sat > 0.3 ? 'var(--accent-amber)' : 'var(--accent-red)';
+                    html += `
+                        <div class="detail-row">
+                            <span class="detail-key">${type}</span>
+                            <span class="detail-value">${pct}%</span>
+                        </div>
+                        <div class="detail-bar"><div class="detail-bar-fill" style="width:${pct}%;background:${barColor};"></div></div>
+                    `;
+                }
+                html += '</div>';
+            }
+
+            // Alternative Supplies
+            if (a.alternative_supplies?.length) {
+                html += `<div class="detail-section"><div class="detail-section-title">Alternative Supplies</div>`;
+                a.alternative_supplies.forEach(alt => {
+                    const feasColor = alt.feasible ? 'var(--accent-green)' : 'var(--accent-red)';
+                    html += `
+                        <div class="detail-row">
+                            <span class="detail-key">${alt.source_asset_id} (${alt.dependency_type})</span>
+                            <span class="detail-value" style="color:${feasColor}">${alt.feasible ? 'FEASIBLE' : 'INSUFFICIENT'}</span>
+                        </div>
+                        <div class="detail-row" style="padding-left:12px;">
+                            <span class="detail-key">Available / Required</span>
+                            <span class="detail-value">${alt.available_capacity.toFixed(1)} / ${alt.required_capacity.toFixed(1)} ${alt.capacity_unit}</span>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+            }
+
+            // Cascade Paths
+            if (a.paths?.length) {
+                html += `<div class="detail-section"><div class="detail-section-title">Failure Paths</div>`;
+                a.paths.forEach(path => {
+                    html += '<div class="path-chain">';
+                    path.forEach((node, i) => {
+                        if (i > 0) html += '<span class="path-arrow">→</span>';
+                        html += `<span class="path-node">${node}</span>`;
+                    });
+                    html += '</div>';
+                });
+                html += '</div>';
+            }
+
+            body.innerHTML = html;
+            panel.classList.add('open');
+            overlay.classList.add('active');
+
+            // Highlight in list
+            document.querySelectorAll('.asset-item').forEach(el => {
+                el.classList.toggle('active', el.dataset.id === assetId);
+            });
+        }
+
+        function closeDetail() {
+            document.getElementById('detail-panel').classList.remove('open');
+            document.getElementById('overlay').classList.remove('active');
+            document.querySelectorAll('.asset-item.active').forEach(el => el.classList.remove('active'));
+        }
+
+        // ── Helpers ──────────────────────────────────────────────
+        function setStatus(text, ok) {
+            const badge = document.getElementById('system-status');
+            const dot = badge.querySelector('.status-dot');
+            const label = document.getElementById('status-text');
+            label.textContent = text;
+            if (ok) {
+                badge.style.background = 'rgba(52, 211, 153, 0.12)';
+                badge.style.borderColor = 'rgba(52, 211, 153, 0.25)';
+                badge.style.color = 'var(--accent-green)';
+                dot.style.background = 'var(--accent-green)';
+            } else {
+                badge.style.background = 'rgba(251, 191, 36, 0.12)';
+                badge.style.borderColor = 'rgba(251, 191, 36, 0.25)';
+                badge.style.color = 'var(--accent-amber)';
+                dot.style.background = 'var(--accent-amber)';
+            }
+        }
+
+        // Resize canvas on window resize
+        window.addEventListener('resize', () => { if (cascadeResult) renderCascadeGraph(); });
+    </script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+[
+  {
+    "scenario_id": "SCENARIO_001",
+    "root_failures": [
+      {
+        "asset_id": "POWER_A",
+        "mode": "complete"
+      }
+    ],
+    "simulation_time_minutes": 480
+  },
+  {
+    "scenario_id": "SCENARIO_002",
+    "root_failures": [
+      {
+        "asset_id": "POWER_A",
+        "mode": "capacity_reduction",
+        "remaining_capacity_percent": 40
+      }
+    ],
+    "simulation_time_minutes": 480
+  },
+  {
+    "scenario_id": "SCENARIO_003",
+    "root_failures": [
+      {
+        "asset_id": "POWER_A",
+        "mode": "complete"
+      },
+      {
+        "asset_id": "TELECOM_02",
+        "mode": "complete"
+      }
+    ],
+    "simulation_time_minutes": 480
+  }
+]
