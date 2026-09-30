@@ -274,39 +274,30 @@ export default function App() {
     setChatInput('');
     setIsChatLoading(true);
 
-    const callOllama = async (modelName: string) => {
+    const callOpenRouter = async () => {
       const systemPrompt = "You are the ResilienceOS AI Assistant. Analyze infrastructure reports. If the user mentions a 'powercut', state that Substation Alpha (PWR_SUB_A) is failing. If they mention 'water', state that Water Treatment Alpha (WTR_PLANT_A) is failing. Briefly explain the impact and confirm you are forwarding the report to the Cascade Analyst.";
       
-      const response = await fetch('http://localhost:11434/api/chat', {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}'
+        },
         body: JSON.stringify({
-          model: modelName,
-          messages: [{ role: 'system', content: systemPrompt }, ...chatMessages, userMsg].map(m => ({ role: m.role, content: m.content })),
-          stream: false
+          model: 'google/gemini-2.5-flash',
+          messages: [{ role: 'system', content: systemPrompt }, ...chatMessages, userMsg].map(m => ({ role: m.role, content: m.content }))
         })
       });
-      if (!response.ok) throw new Error(`Model ${modelName} failed`);
+      if (!response.ok) throw new Error(`OpenRouter API failed`);
       return response.json();
     };
 
     try {
-      // Attempt primary model
-      let data;
-      try {
-        data = await callOllama('gemma3:1b');
-      } catch (e) {
-        // Fallback to qwen
-        setChatMessages(prev => [...prev, { role: 'assistant', content: 'Fallback: gemma3:1b not found, trying qwen...' }]);
-        data = await callOllama('qwen');
-      }
+      const data = await callOpenRouter();
+      const assistantMessage = data.choices[0].message.content;
       
-      setChatMessages(prev => {
-        // Remove the temporary fallback message if it exists
-        const cleaned = prev.filter(m => !m.content.startsWith('Fallback:'));
-        return [...cleaned, { role: 'assistant', content: data.message.content }];
-      });
-      speak(data.message.content);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: assistantMessage }]);
+      speak(assistantMessage);
 
       // Auto-trigger the Cascade Analyst based on extracted keywords
       const lowerInput = chatInput.toLowerCase();
@@ -721,13 +712,13 @@ export default function App() {
             <div className="chat-messages" style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--space-sm)' }}>
               {chatMessages.map((m, i) => (
                 <div key={i} className={`chat-bubble ${m.role}`} style={{ alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start', background: m.role === 'user' ? 'rgba(0, 243, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)', border: `1px solid ${m.role === 'user' ? 'rgba(0, 243, 255, 0.3)' : 'var(--border)'}`, padding: 'var(--space-sm) var(--space-md)', borderRadius: '12px', maxWidth: '80%', color: 'var(--text-h)' }}>
-                  <div style={{ fontSize: '10px', opacity: 0.6, marginBottom: '4px', textTransform: 'uppercase' }}>{m.role === 'user' ? 'You' : 'Ollama Engine'}</div>
+                  <div style={{ fontSize: '10px', opacity: 0.6, marginBottom: '4px', textTransform: 'uppercase' }}>{m.role === 'user' ? 'You' : 'OpenRouter API'}</div>
                   <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.4 }}>{m.content}</div>
                 </div>
               ))}
               {isChatLoading && (
                 <div className="chat-bubble assistant" style={{ alignSelf: 'flex-start', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid var(--border)', padding: 'var(--space-sm) var(--space-md)', borderRadius: '12px', color: 'var(--text-h)' }}>
-                  <div style={{ fontSize: '10px', opacity: 0.6, marginBottom: '4px', textTransform: 'uppercase' }}>Ollama Engine</div>
+                  <div style={{ fontSize: '10px', opacity: 0.6, marginBottom: '4px', textTransform: 'uppercase' }}>OpenRouter API</div>
                   <div>Analyzing...</div>
                 </div>
               )}
